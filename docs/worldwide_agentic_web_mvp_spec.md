@@ -65,7 +65,7 @@ protocol. Authentication, billing, and service-level policies for those services
 
 ### 1.2 Terms
 
-- **Agent network:** A named graph of agents, their instructions, invocation schemas, and available agents or tools.
+- **Agent network:** A named, portable graph of one or more agents, their instructions, invocation schemas, and available agents or tools. A network MAY represent an entire site or a particular page, feature, domain, or function. An agent site MAY publish multiple networks, and each network MAY contain specialized agents representing different parts of the site.
 
 - **Agent site:** A web origin or subpath that publishes one or more agent networks and the files needed to run them.
 
@@ -487,6 +487,8 @@ execution, and pluggable inference.
 
 - [Versioning integrity and publisher terms](https://github.com/cognizant-ai-lab/nsdeploy) Profile fields, hashes,
     caller pinning, signatures, licensing, attribution, and re-consent when published artifacts change.
+
+- Mobile application integration: Extend the profile to native mobile applications, including Android. A mobile app or embedded browser runtime could load agent networks and expose app capabilities through permission-bound actions, deep links, Android intents, platform APIs, or MCP. Mobile implementations would require platform-specific policies for application identity, permissions, credential storage, user consent, lifecycle, and background execution.
 
 Note that while examples of agentic sites linked from this spec tend to take the shape of chatbots, they need not
 necessarily be invoked in this manner. For example, one can conceive of agents auto redesigning a web page as it is
