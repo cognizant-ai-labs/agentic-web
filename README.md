@@ -22,6 +22,8 @@ An open agentic website is a public website that contains:
 - a `runtime.js` file that can run the agent network in the browser
 - an interface that allows users to interact with the agent network
 - an interface that allows users to configure the LLM and keys to use
+  
+It must follow the [minimum viable specification](docs/worldwide_agentic_web_mvp_spec.md) for a worldwide agentic web.
 
 ### Key principles
 
@@ -35,6 +37,11 @@ An open agentic website is a public website that contains:
 ### Existing web infrastructure
 
 Open agentic websites use ordinary web technologies (HTML, CSS, JavaScript, JSON), HTTPS hosting, CORS, WebMCP, MCP and standard web browsers. They are compatible with existing web infrastructure and can be deployed on any public hosting service.
+
+
+## Spec
+
+The minimum viable specification for a worldwide agentic web is described in [docs/worldwide_agentic_web_mvp_spec.md](docs/worldwide_agentic_web_mvp_spec.md).
 
 
 ## Examples
@@ -286,6 +293,7 @@ Try the [hosted version](https://neuro-san.evolution.ml/) with your own LLM keys
 
 > [!NOTE]
 > TODO
+Run the validation script to check your submission is compliant.
 
 ## Documentation
 
@@ -294,9 +302,6 @@ Try the [hosted version](https://neuro-san.evolution.ml/) with your own LLM keys
 The agent network HOCON reference is available in 
 [this document](https://github.com/cognizant-ai-lab/neuro-san/blob/main/docs/agent_hocon_reference.md).
 
-### Spec
-
-The minimum viable specification for a worldwide agentic web is described in [docs/worldwide_agentic_web_mvp_spec.md](docs/worldwide_agentic_web_mvp_spec.md).
 
 ## Hackathon
 
