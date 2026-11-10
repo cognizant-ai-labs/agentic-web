@@ -54,8 +54,8 @@ Things to know for every provider:
 - OpenAI allows browser calls, so static bundles work. The
   [Quickstart](../../README.md#manually-generate-a-website-bundle) uses it.
 - Model IDs look like `gpt-4.1-mini`. The model check uses OpenAI's model list.
-- Some newer OpenAI models limit tool calls on Chat Completions. `gpt-4.1-mini` was
-  tested. Check OpenAI's docs before you pick another model.
+- Some newer OpenAI models limit tool calls on Chat Completions. Check OpenAI's docs
+  before you pick a model.
 
 ## OpenRouter
 
@@ -64,9 +64,7 @@ Things to know for every provider:
   `anthropic/claude-haiku-5.5`.
 - OpenRouter allows browser calls, so static bundles work. It's the easiest way to use
   Claude models from a browser-only site.
-- Tool use depends on the model. In tests, `anthropic/claude-haiku-5.5` and
-  `openai/gpt-4.1-mini` always called the tool. `anthropic/claude-haiku-4.5` once asked a
-  question instead.
+- Tool use depends on the model, so pick one that reliably calls tools.
 
 ## Anthropic
 
@@ -85,8 +83,7 @@ Things to know for every provider:
 ## LiteLLM, self-hosted
 
 [LiteLLM](https://docs.litellm.ai/) is a proxy you run yourself. Your provider keys stay
-on the LiteLLM server, and the browser only holds a LiteLLM key. Tested with LiteLLM
-1.106.6.
+on the LiteLLM server, and the browser only holds a LiteLLM key.
 
 1. Install it:
    ```shell

@@ -55,8 +55,7 @@ Things to know:
 - **Model IDs must match the catalog exactly.** Get them from `GET /api/v1/models`.
   A short name such as `qwen-3.5-35b` returns 400 `invalid_model`.
 - **Pick a model that makes tool calls.** The front agent delegates to other agents
-  through tool calls. `alibaba/qwen-3.5-35b-a3b` worked. Other models are untested, and
-  one that answered in plain text without calling a tool did not delegate.
+  through tool calls. A model that answers in plain text instead won't delegate.
 - **All keys go to Otari.** With `--upstream` set to Otari, every key entered on that site
   is sent to Otari, so an OpenAI key won't work there.
 - **Limit your key.** Use an Otari key with a spending limit, and revoke it when the
@@ -65,7 +64,7 @@ Things to know:
 ## Self-hosted Otari with local models
 
 This runs Otari in Docker in front of [Ollama](https://ollama.com) on your machine, so
-no LLM provider key is needed. Tested with Otari 0.36.0 and `gemma4:e4b` on a Mac.
+no LLM provider key is needed.
 
 ### 1. Pull a model
 
@@ -128,7 +127,7 @@ docker run --rm --name otari-local --publish 127.0.0.1:8000:8000 \
 ```
 
 Otari's base URL is now `http://127.0.0.1:8000/api/v1`. On Linux, `host.docker.internal`
-may need `--add-host=host.docker.internal:host-gateway` on `docker run` (not tested).
+may need `--add-host=host.docker.internal:host-gateway` on `docker run`.
 
 ### 5. Point the site at it
 
@@ -166,7 +165,7 @@ Things to know:
 - **Model IDs.** `GET /api/v1/models` lists local models under catalog-style IDs such as
   `google/gemma4-e4b`. It also lists other Ollama models found on the host. Those return
   402 until you add a pricing entry for them.
-- **Local models are slow.** A multi-agent turn took 60 to 90 seconds on a Mac.
+- **Local models are slow.** A multi-agent turn can take a minute or more.
 
 ## Troubleshooting
 
