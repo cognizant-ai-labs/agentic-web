@@ -106,6 +106,11 @@ Things to know:
   to limit it to your site's origin.
 - **Model names.** The model list shows your `model_name` aliases, so visitors type the
   alias, such as `gpt-4.1-mini`.
+- **For a public site,** run LiteLLM on a server behind HTTPS, and set Router base URL
+  to its address, such as `https://litellm.example.com/v1`. Set `LITELLM_CORS_ORIGINS`
+  to your site's origin, such as `https://example.com` (a comma-separated list for more
+  than one), and give each visitor a virtual key. Browsers block an `https` page from
+  calling a plain `http` address other than `localhost`.
 
 ## Ollama, local
 

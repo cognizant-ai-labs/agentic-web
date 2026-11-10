@@ -128,6 +128,10 @@ Things to know:
   `google/gemma4-e4b`. It also lists other Ollama models found on the host. Those return
   402 until you add a pricing entry for them.
 - **Local models are slow.** A multi-agent turn can take a minute or more.
+- **For a public site,** run Otari on a server behind HTTPS, and set Router base URL to
+  its address, such as `https://otari.example.com/api/v1`. Add your site's origin, such
+  as `https://example.com`, to `cors_allow_origins`. Browsers block an `https` page from
+  calling a plain `http` address other than `localhost`.
 
 ## Troubleshooting
 
