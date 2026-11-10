@@ -324,6 +324,14 @@ The agent network HOCON reference is available in
 
 Check the official [hackathon](https://cognizant-agenticweb.devpost.com/) page for details about the Agentic Web Hackathon.
 
+## Agentic Websites
+
+These sites already follow the Open Agentic Web principles.
+Use them as examples or starting points, connect your agents, and help grow the list.
+
+| URL | Description | Notes |
+|---|---|---|
+|https://worldwideagenticweb.org/|The Open Agentic Web Challenge| Answers questions about the Open Agentic Web and how to participate in the challenge.|
 
 ## Ideas
 
