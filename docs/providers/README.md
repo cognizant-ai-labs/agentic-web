@@ -14,7 +14,7 @@ It requires the provider to allow browser calls (CORS).
 | [OpenRouter](#openrouter) | `https://openrouter.ai/api/v1` | `anthropic/claude-haiku-5.5` | Works |
 | [Anthropic](#anthropic) | `https://api.anthropic.com/v1` | `claude-haiku-4-5` | Does not work |
 | [LiteLLM, self-hosted](#litellm-self-hosted) | `http://127.0.0.1:4000/v1` | your model alias | Works |
-| [Ollama, local](#ollama-local) | `http://127.0.0.1:11434/v1` | `gemma4:e4b` | Works for pages on `localhost` or `127.0.0.1` |
+| [Ollama, local](#ollama-local) | `http://127.0.0.1:11434/v1` | `gemma4:e4b` | Local testing only |
 | [Otari](otari.md) | `https://api.otari.ai/api/v1` | `alibaba/qwen-3.5-35b-a3b` | Self-hosted Otari only |
 
 To reach Claude models from a static bundle, use OpenRouter or LiteLLM.
@@ -137,8 +137,10 @@ Things to know:
 - **Only for your own machine.** `127.0.0.1` is always the visitor's own computer, so a
   site pointed at it works only for people who run Ollama themselves.
 - **Local models are slow.** A multi-agent turn can take a minute or more.
-- To share one Ollama behind its own keys, put
-  [Otari](otari.md#self-hosted-otari-with-local-models) in front of it.
+- **For a public site,** run Ollama on a server behind a gateway that has keys and
+  allows your site's origin, such as a
+  [self-hosted Otari](otari.md#self-hosted-otari-with-local-models). Don't expose Ollama
+  itself on the internet: it has no keys, so anyone could use it.
 
 ## Otari
 
