@@ -39,7 +39,7 @@ Things to know for every provider:
 
 ## OpenAI
 
-- This is the launcher's default upstream, so `--upstream` can be left out if using `nsdeploy`.
+- This is nsdeploy's default `--upstream`, so it can be left out when you build the bundle.
 - OpenAI allows browser calls, so static bundles work. The
   [Quickstart](../../README.md#manually-generate-a-website-bundle) uses it.
 - Model IDs look like `gpt-4.1-mini`. The model check uses OpenAI's model list.
@@ -60,7 +60,7 @@ Things to know for every provider:
 - Anthropic's OpenAI-compatible endpoint is `https://api.anthropic.com/v1`. It accepts
   your Anthropic key as a Bearer token, and tool calls work.
 - Anthropic blocks browser calls unless the request carries a special opt-in header,
-  which `nsdeploy` currently doesn't send.  
+  which `nsdeploy` currently doesn't send.
 - This endpoint's model list can't be read, so there is no model check. Type an exact
   model ID such as `claude-haiku-4-5`.
 - For a static bundle, put OpenRouter or LiteLLM in front of Anthropic.

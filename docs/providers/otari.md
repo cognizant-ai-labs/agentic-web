@@ -1,10 +1,8 @@
 # Using Otari
 
 [Otari](https://otari.ai) is an open-source LLM gateway with an OpenAI-compatible API.
-An nsdeploy site can use it as its LLM router, either Mozilla's hosted Otari or one you
-run yourself. The commands below assume nsdeploy is installed, as in the
-[Quickstart](../../README.md#manually-generate-a-website-bundle). For other providers,
-see [LLM providers](README.md).
+An open agentic website can use it as its LLM router. Mozilla runs a hosted Otari, and
+you can also run one yourself. For other providers, see [LLM providers](README.md).
 
 Which setup works depends on how Otari is used:
 
@@ -32,6 +30,7 @@ does not.
 - Hosted Otari does not allow browser calls. If Router base URL points straight at Otari,
   the chat shows `⚠️ Failed to fetch` and the browser console shows CORS errors. A correct
   key and URL don't help.
+- To use Otari from a static site, run it yourself as shown below.
 
 ## Self-hosted Otari with local models
 
@@ -46,7 +45,7 @@ ollama pull gemma4:e4b
 
 ### 2. Make a key
 
-Create directory for your Otari config and database, and write a random key to `key.env`:
+Make a folder for the Otari config and key:
 
 ```shell
 mkdir otari
@@ -77,10 +76,8 @@ pricing:
     input_price_per_million: 0
     output_price_per_million: 0
 cors_allow_origins:
-# List the origins of pages allowed to call Otari from the browser.
-# Each origin must match the page's address exactly: scheme, host and port.
-# Avoid using `"*"`, which lets pages on any website call your gateway.
-  - "*"
+  # Change this to the address of your site, without a path.
+  - "http://127.0.0.1:8080"
 api_keys:
   local-test:
     secret: ${OTARI_LOCAL_API_KEY}
@@ -90,7 +87,8 @@ api_keys:
 - **`pricing`:** Otari refuses a model with no price (402). Give each local model you
   want to use a zero-price entry like the one above.
 - **`cors_allow_origins`:** the origins of pages allowed to call Otari from the browser.
-  You need it for a static bundle, or when Router base URL points straight at Otari.
+  `http://127.0.0.1:8080` is where the
+  [Quickstart](../../README.md#manually-generate-a-website-bundle) serves its bundle.
 
 Each origin must match the page's address exactly: scheme, host and port.
 `http://localhost:8080` and `http://127.0.0.1:8080` are different origins. Avoid `"*"`,
@@ -110,9 +108,12 @@ docker run --rm --name otari-local --publish 127.0.0.1:8042:8000 \
 Otari's base URL is now `http://127.0.0.1:8042/api/v1`. On Linux, `host.docker.internal`
 may need `--add-host=host.docker.internal:host-gateway` on `docker run`.
 
+Otari keeps its database inside the container, so it starts empty each time. That's
+fine here, because it creates the key from `config.yml` when it starts.
+
 ### 5. Point the site at it
 
-Open an agentic website in a browser, 
+Open the site in a browser, for instance the Quickstart bundle at http://127.0.0.1:8080/,
 and expand `⚙ BYOK / router settings`:
 
 - API key: the value after `OTARI_LOCAL_API_KEY=` in `key.env`.
@@ -132,8 +133,8 @@ Things to know:
 
 | Symptom | Cause and fix |
 |---|---|
-| Chat shows `⚠️ Failed to fetch`, console shows "blocked by CORS policy" | The browser is calling a router that doesn't allow this page. For hosted Otari, use the launcher and leave Router base URL empty. For self-hosted Otari, add the page's exact origin to `cors_allow_origins` and restart Otari. |
-| The site keeps using an old router | The panel saves your setup in the browser. On `localhost` and `127.0.0.1` it is also kept in a cookie shared by every local port for 180 days, so a router saved for another site follows you. Clear Router base URL (or set it to `/byok/v1` on a launcher site), then `Apply, save & reload`. |
+| Chat shows `⚠️ Failed to fetch`, console shows "blocked by CORS policy" | The browser is calling a router that doesn't allow this page. Hosted Otari never allows it, so use a self-hosted Otari. For self-hosted Otari, add the page's exact origin to `cors_allow_origins` and restart Otari. |
+| The site keeps using an old router | The panel saves your setup in the browser. On `localhost` and `127.0.0.1` it is also kept in a cookie shared by every local port for 180 days, so a router saved for another site follows you. Set Router base URL to the router you want, or clear it to use the site's default, then `Apply, save & reload`. |
 | 400 `invalid_model` | Use an exact model ID from `GET /api/v1/models`. |
 | 402 "No pricing is configured" | Self-hosted: add a `pricing` entry for that model. |
 | 404 "Otari serves its API under /api/v1" | The base URL must end in `/api/v1`, not `/v1`. |
