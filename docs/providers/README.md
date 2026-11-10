@@ -1,39 +1,29 @@
 # LLM providers
 
-An nsdeploy site talks to its LLM through the OpenAI Chat Completions API. It sends
+An open agentic website like one generated with `nsdeploy` can talk to its LLM through the
+OpenAI Chat Completions API. It sends
 `POST <router>/chat/completions` with your key as `Authorization: Bearer <key>`, and it
-reads `GET <router>/models` to check the model name. Any provider that accepts this works
-through the nsdeploy launcher. A static bundle also needs the provider to allow browser
-calls (CORS).
+reads `GET <router>/models` to check the model name.
+It requires the provider to allow browser calls (CORS).
 
 ## Which providers work
 
-| Provider | Router base URL | Example model | Launcher (`/byok/v1` relay) | Direct from the browser (static bundle) |
-|---|---|---|---|---|
-| [OpenAI](#openai) | `https://api.openai.com/v1` | `gpt-4.1-mini` | Works | Works |
-| [OpenRouter](#openrouter) | `https://openrouter.ai/api/v1` | `anthropic/claude-haiku-5.5` | Works | Works |
-| [Anthropic](#anthropic) | `https://api.anthropic.com/v1` | `claude-haiku-4-5` | Works | Does not work |
-| [LiteLLM, self-hosted](#litellm-self-hosted) | `http://127.0.0.1:4000/v1` | your model alias | Works | Works |
-| [Otari](otari.md) | `https://api.otari.ai/api/v1` | `alibaba/qwen-3.5-35b-a3b` | Works | Self-hosted Otari only |
+| Provider | Router base URL | Example model | Direct from the browser (static bundle) |
+|---|---|---|---|
+| [OpenAI](#openai) | `https://api.openai.com/v1` | `gpt-4.1-mini` | Works |
+| [OpenRouter](#openrouter) | `https://openrouter.ai/api/v1` | `anthropic/claude-haiku-5.5` | Works |
+| [Anthropic](#anthropic) | `https://api.anthropic.com/v1` | `claude-haiku-4-5` | Does not work |
+| [LiteLLM, self-hosted](#litellm-self-hosted) | `http://127.0.0.1:4000/v1` | your model alias | Works |
+| [Otari](otari.md) | `https://api.otari.ai/api/v1` | `alibaba/qwen-3.5-35b-a3b` | Self-hosted Otari only |
 
 To reach Claude models from a static bundle, use OpenRouter or LiteLLM.
 
 ## Connecting a site to a provider
 
-**With the launcher**, the site relays requests to the provider, so CORS doesn't matter:
-
-```shell
-python -m nsdeploy examples/pizza_restaurant_website_assistant.hocon \
-  --port 8080 --upstream <router base URL>
-```
-
-Open http://127.0.0.1:8080/, expand `⚙ BYOK / router settings`, enter your key and
-model, and leave Router base URL empty (or enter `/byok/v1`). Then click
-`Apply, save & reload`. Every key entered on that site goes to the `--upstream` provider.
-
-**With a static bundle**, the browser calls the provider itself. Build with
+**With a static bundle** like the one generated with `nsdeploy`,
+the browser calls the provider itself. Build with
 `--static-bundle --upstream <router base URL>`, or set Router base URL in the panel to
-the provider's URL. This only works for providers that allow browser calls.
+the provider's URL. This only works for providers that allow browser calls (CORS).
 
 Things to know for every provider:
 
@@ -45,12 +35,11 @@ Things to know for every provider:
 - **One harmless console error.** With the router set straight to a cloud provider, the
   console shows a CORS error for `<provider origin>/agent-manifest.json`. nsdeploy checks
   that address, ignores the failure and carries on.
-- **Limit your key.** Use a key with a spending limit, and revoke it when the workshop or
-  test is over.
+- **Limit your key.** Use a key with a spending limit, and consider revoking it when done.
 
 ## OpenAI
 
-- This is the launcher's default upstream, so `--upstream` can be left out.
+- This is the launcher's default upstream, so `--upstream` can be left out if using `nsdeploy`.
 - OpenAI allows browser calls, so static bundles work. The
   [Quickstart](../../README.md#manually-generate-a-website-bundle) uses it.
 - Model IDs look like `gpt-4.1-mini`. The model check uses OpenAI's model list.
@@ -71,11 +60,7 @@ Things to know for every provider:
 - Anthropic's OpenAI-compatible endpoint is `https://api.anthropic.com/v1`. It accepts
   your Anthropic key as a Bearer token, and tool calls work.
 - Anthropic blocks browser calls unless the request carries a special opt-in header,
-  which nsdeploy doesn't send. So use the launcher, not a static bundle:
-  ```shell
-  python -m nsdeploy examples/pizza_restaurant_website_assistant.hocon \
-    --port 8080 --upstream https://api.anthropic.com/v1
-  ```
+  which `nsdeploy` currently doesn't send.  
 - This endpoint's model list can't be read, so there is no model check. Type an exact
   model ID such as `claude-haiku-4-5`.
 - For a static bundle, put OpenRouter or LiteLLM in front of Anthropic.
@@ -109,8 +94,7 @@ on the LiteLLM server, and the browser only holds a LiteLLM key.
    export LITELLM_MASTER_KEY="sk-$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
    litellm --config config.yaml --host 127.0.0.1 --port 4000
    ```
-1. Point the site at `http://127.0.0.1:4000/v1`, either with
-   `--upstream http://127.0.0.1:4000/v1` on the launcher, or as Router base URL.
+1. Point the site at `http://127.0.0.1:4000/v1` as Router base URL.
 
 Things to know:
 
@@ -121,3 +105,7 @@ Things to know:
   to limit it to your site's origin.
 - **Model names.** The model list shows your `model_name` aliases, so visitors type the
   alias, such as `gpt-4.1-mini`.
+
+## Otari
+
+See [Otari](otari.md) for details.

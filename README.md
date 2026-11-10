@@ -287,9 +287,9 @@ Try the [hosted version](https://neuro-san.evolution.ml/) with your own LLM keys
 
 [Otari](https://otari.ai) is an open-source LLM gateway. Use it to manage your LLM keys and connect to multiple LLM providers.
 
-An nsdeploy site can use Otari as its LLM router:
+An open agentic website can use Otari as its LLM router:
 - **Hosted Otari** (`https://api.otari.ai/api/v1`) blocks calls from the browser, so a
-  static bundle can't use it. Serve the site with the nsdeploy launcher and
+  static bundle can't use it. One option is to serve the site with the nsdeploy launcher and
   `--upstream https://api.otari.ai/api/v1` instead. The site relays your key to Otari.
 - **Self-hosted Otari** works with the launcher, and with a static bundle once you allow
   the site's origin in Otari's `cors_allow_origins`. It can also run local models through
