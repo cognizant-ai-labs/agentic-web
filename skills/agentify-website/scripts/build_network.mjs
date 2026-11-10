@@ -1,0 +1,542 @@
+// Convert an agent-network HOCON file into the published <network>.network.json and check it.
+//
+// Usage:
+//   node build_network.mjs <site>/<network>.hocon [--manifest <site>/agent-manifest.json]
+//        [--runtime <site>/runtime] [--out <site>/<network>.network.json] [--check]
+//        [--max-instructions 4000]
+//
+// The script parses the HOCON with the bundle's own runtime parser, so the published
+// file is exactly what the browser will load. It exits with code 1 when it finds errors.
+
+import { readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+
+/**
+ * Builds the published network JSON for an agentified website and checks it.
+ *
+ * It uses the copied browser runtime (hocon.js and kernel.js) to parse and validate,
+ * then applies extra checks for problems the runtime accepts but that make a poor
+ * website agent, such as demo_mode or website_* tools missing from the manifest.
+ */
+class NetworkBuilder {
+  /**
+   * Store the command-line options.
+   *
+   * :param options: Parsed options with hocon, out, manifest, runtime, check and maxInstructions.
+   */
+  constructor(options) {
+    this.options = options;
+    this.errors = [];
+    this.warnings = [];
+  }
+
+  /**
+   * Parse command-line arguments into an options object.
+   *
+   * :param argv: The arguments after the script name.
+   * :return: The options object.
+   * :raises Error: When the HOCON path is missing or an option has no value.
+   */
+  static parseArgs(argv) {
+    const options = {
+      hocon: null,
+      out: null,
+      manifest: null,
+      runtime: null,
+      check: false,
+      // The runtime appends about 2,000 more characters of CRUSE and tool context.
+      maxInstructions: 4000,
+    };
+    let index = 0;
+    while (index < argv.length) {
+      const arg = argv[index];
+      if (arg === "--check") {
+        options.check = true;
+      } else if (arg === "--out" || arg === "--manifest" || arg === "--runtime" || arg === "--max-instructions") {
+        const value = argv[index + 1];
+        if (value === undefined) {
+          throw new Error(`${arg} needs a value.`);
+        }
+        if (arg === "--out") {
+          options.out = value;
+        } else if (arg === "--manifest") {
+          options.manifest = value;
+        } else if (arg === "--runtime") {
+          options.runtime = value;
+        } else {
+          options.maxInstructions = Number(value);
+        }
+        index += 1;
+      } else if (options.hocon === null) {
+        options.hocon = arg;
+      } else {
+        throw new Error(`Unexpected argument: ${arg}`);
+      }
+      index += 1;
+    }
+    if (options.hocon === null) {
+      throw new Error("Usage: node build_network.mjs <network>.hocon [--manifest FILE] [--runtime DIR] [--out FILE] [--check]");
+    }
+    const siteDir = path.dirname(options.hocon);
+    const networkName = path.basename(options.hocon).replace(/\.hocon$/, "");
+    if (options.out === null) {
+      options.out = path.join(siteDir, `${networkName}.network.json`);
+    }
+    if (options.runtime === null) {
+      options.runtime = path.join(siteDir, "runtime");
+    }
+    options.networkName = networkName;
+    return options;
+  }
+
+  /**
+   * Run the build and print a report.
+   *
+   * :param argv: The arguments after the script name.
+   * :return: The process exit code, 0 when there are no errors.
+   */
+  static async main(argv) {
+    let options;
+    try {
+      options = NetworkBuilder.parseArgs(argv);
+    } catch (error) {
+      console.error(error.message);
+      return 2;
+    }
+    const builder = new NetworkBuilder(options);
+    return builder.run();
+  }
+
+  /**
+   * Parse, check and (unless --check) write the network JSON.
+   *
+   * :return: The process exit code, 0 when there are no errors.
+   */
+  async run() {
+    const runtime = await this.loadRuntime();
+    const text = await readFile(this.options.hocon, "utf8");
+    this.checkSubset(text);
+    if (this.errors.length) {
+      return this.report(null, null);
+    }
+    let config;
+    try {
+      config = runtime.parseHocon(text);
+    } catch (error) {
+      this.errors.push(error.message);
+      return this.report(null, null);
+    }
+    const network = new runtime.AgentNetwork(config, this.options.networkName);
+    const validation = runtime.validateNetwork(network);
+    for (const message of validation.errors) {
+      this.errors.push(`Runtime validation: ${message}`);
+    }
+    let frontMan = null;
+    try {
+      frontMan = network.findFrontMan();
+    } catch (error) {
+      this.errors.push(`Front agent: ${error.message}`);
+    }
+    this.checkNetwork(config, network.config);
+    if (frontMan !== null) {
+      this.checkReachable(network.config, frontMan);
+    }
+    this.checkPlaceholders(config, "network");
+    const manifest = await this.loadManifest();
+    if (manifest !== null) {
+      this.checkManifest(manifest, network.config, frontMan);
+      this.checkPlaceholders(manifest, "manifest");
+    }
+    this.added = this.runtimeContextSizes(runtime, network, frontMan);
+    this.websiteTools = this.offeredTools(manifest, network.config);
+    const json = `${JSON.stringify(config, null, 2)}\n`;
+    if (this.options.check) {
+      await this.compareOutput(json);
+    } else if (!this.errors.length) {
+      await writeFile(this.options.out, json);
+    }
+    return this.report(network.config, frontMan);
+  }
+
+  /**
+   * Measure the CRUSE context the runtime appends to each agent's instructions.
+   *
+   * :param runtime: The loaded runtime modules.
+   * :param network: The runtime AgentNetwork.
+   * :param frontMan: The front agent name, or null.
+   * :return: A map from agent name to the number of characters the runtime adds.
+   */
+  runtimeContextSizes(runtime, network, frontMan) {
+    const sizes = new Map();
+    const agents = Array.isArray(network.config.tools) ? network.config.tools : [];
+    const ctx = {
+      network: network,
+      isTop: true,
+      frontMan: frontMan,
+    };
+    for (const agent of agents) {
+      sizes.set(agent.name, runtime.agentPresentationContext(ctx, agent.name).length);
+    }
+    return sizes;
+  }
+
+  /**
+   * List the tools the runtime adds to every agent, on top of its "tools" list.
+   *
+   * :param manifest: The parsed manifest, or null.
+   * :param resolved: The resolved network.
+   * :return: The added tool names.
+   */
+  offeredTools(manifest, resolved) {
+    const names = [];
+    const actions = manifest === null ? null : manifest.actions || null;
+    if (actions !== null && Array.isArray(actions.agentTools)) {
+      for (const name of actions.agentTools) {
+        names.push(`website_${name}`);
+      }
+    }
+    if (resolved.cruse) {
+      names.push("render_cruse");
+    }
+    return names;
+  }
+
+  /**
+   * Fail when an agent cannot be reached from the front agent through "tools".
+   *
+   * :param resolved: The resolved network.
+   * :param frontMan: The front agent name.
+   */
+  checkReachable(resolved, frontMan) {
+    const byName = new Map();
+    const agents = Array.isArray(resolved.tools) ? resolved.tools : [];
+    for (const agent of agents) {
+      byName.set(agent.name, agent);
+    }
+    const reached = new Set([frontMan]);
+    const queue = [frontMan];
+    while (queue.length) {
+      const agent = byName.get(queue.shift());
+      const tools = agent && Array.isArray(agent.tools) ? agent.tools : [];
+      for (const tool of tools) {
+        if (typeof tool === "string" && byName.has(tool) && !reached.has(tool)) {
+          reached.add(tool);
+          queue.push(tool);
+        }
+      }
+    }
+    for (const name of byName.keys()) {
+      if (!reached.has(name)) {
+        this.errors.push(`${name}: no agent lists it in "tools", so it can never be called. Add it to a caller or delete it.`);
+      }
+    }
+  }
+
+  /**
+   * Fail on template placeholders and TODO markers left in any string value.
+   *
+   * :param value: The parsed network or manifest, or a part of it.
+   * :param where: A label for error messages.
+   */
+  checkPlaceholders(value, where) {
+    if (typeof value === "string") {
+      // Template placeholders look like <Site name> or <front_agent_name>.
+      const placeholder = value.match(/<(?:Site name|[a-z]+(?:_[a-z]+)+)>/);
+      if (placeholder) {
+        this.errors.push(`${where}: placeholder ${placeholder[0]} is not filled in.`);
+      }
+      if (/\bTODO\b/.test(value)) {
+        this.errors.push(`${where}: a TODO is left in "${value.trim().slice(0, 60)}".`);
+      }
+    } else if (Array.isArray(value)) {
+      for (const item of value) {
+        this.checkPlaceholders(item, where);
+      }
+    } else if (value !== null && typeof value === "object") {
+      for (const [key, item] of Object.entries(value)) {
+        this.checkPlaceholders(key, where);
+        this.checkPlaceholders(item, where);
+      }
+    }
+  }
+
+  /**
+   * Import the runtime modules that parse and validate networks.
+   *
+   * :return: An object with parseHocon, AgentNetwork and validateNetwork.
+   * :raises Error: When the runtime directory does not contain the expected modules.
+   */
+  async loadRuntime() {
+    const runtimeDir = path.resolve(this.options.runtime);
+    const hocon = await import(pathToFileURL(path.join(runtimeDir, "hocon.js")).href);
+    const kernel = await import(pathToFileURL(path.join(runtimeDir, "kernel.js")).href);
+    const cruse = await import(pathToFileURL(path.join(runtimeDir, "cruse.js")).href);
+    return {
+      parseHocon: hocon.parseHocon,
+      AgentNetwork: kernel.AgentNetwork,
+      validateNetwork: kernel.validateNetwork,
+      agentPresentationContext: cruse.agentPresentationContext,
+    };
+  }
+
+  /**
+   * Reject HOCON features that the browser parser does not support.
+   *
+   * :param text: The HOCON source text.
+   */
+  checkSubset(text) {
+    const lines = text.split("\n");
+    for (let index = 0; index < lines.length; index += 1) {
+      const line = lines[index];
+      // Comments may mention these features; only real content matters.
+      if (/^\s*(#|\/\/)/.test(line)) {
+        continue;
+      }
+      // Includes and ${...} substitutions need a server-side resolver such as pyhocon.
+      if (/^\s*include\s/.test(line)) {
+        this.errors.push(`Line ${index + 1}: "include" is not supported. Inline the content or use commondefs.`);
+      }
+      if (line.includes("${")) {
+        this.errors.push(`Line ${index + 1}: "\${...}" substitution is not supported. Use commondefs.replacement_strings and {name}.`);
+      }
+    }
+  }
+
+  /**
+   * Check the parsed network for patterns that make a poor website agent.
+   *
+   * :param raw: The parsed HOCON, before commondefs are applied.
+   * :param resolved: The network after the runtime applied commondefs and defaults.
+   */
+  checkNetwork(raw, resolved) {
+    if (Object.hasOwn(raw, "demo_mode")) {
+      this.errors.push("Top-level demo_mode is defined. Ground every agent instead of letting it invent answers.");
+    }
+    if (Object.hasOwn(raw, "aaosa_instructions") || Object.hasOwn(raw, "aaosa_call")) {
+      this.warnings.push("AAOSA is used. Each delegation then costs extra model calls; prefer plain delegation for small sites.");
+    }
+    if (!resolved.cruse) {
+      this.warnings.push("No \"cruse\" block. The render_cruse tool and generative UI context will be off.");
+    }
+    const metadata = resolved.metadata || {};
+    if (!Array.isArray(metadata.sample_queries) || !metadata.sample_queries.length) {
+      this.warnings.push("metadata.sample_queries is empty. Add questions the site can really answer.");
+    }
+    this.checkReplacementStrings(raw);
+    const agents = Array.isArray(resolved.tools) ? resolved.tools : [];
+    for (const agent of agents) {
+      this.checkAgent(agent);
+    }
+  }
+
+  /**
+   * Warn about nested {placeholders}, which the browser expands only once.
+   *
+   * :param raw: The parsed HOCON, before commondefs are applied.
+   */
+  checkReplacementStrings(raw) {
+    const strings = (raw.commondefs || {}).replacement_strings || {};
+    const keys = Object.keys(strings);
+    for (const key of keys) {
+      const value = String(strings[key]);
+      for (const other of keys) {
+        if (value.includes(`{${other}}`)) {
+          this.errors.push(`commondefs.replacement_strings.${key} uses {${other}}. The browser runtime does not expand nested placeholders.`);
+        }
+      }
+    }
+  }
+
+  /**
+   * Check one agent or tool entry.
+   *
+   * :param agent: One entry of the resolved network's tools list.
+   */
+  checkAgent(agent) {
+    const name = agent.name || "(unnamed)";
+    if (agent.toolbox || agent.class) {
+      this.errors.push(`${name}: toolbox/class tools cannot run in a static browser bundle. Use a website action or an MCP URL.`);
+      return;
+    }
+    const instructions = typeof agent.instructions === "string" ? agent.instructions : "";
+    if (!instructions.trim()) {
+      this.errors.push(`${name}: an LLM agent needs instructions.`);
+    }
+    if (/make up a realistic response|as if you are actually grounded/i.test(instructions)) {
+      this.errors.push(`${name}: instructions tell the agent to invent results (demo mode).`);
+    }
+    if (/\{[A-Za-z0-9_]+\}/.test(instructions)) {
+      const match = instructions.match(/\{[A-Za-z0-9_]+\}/);
+      this.warnings.push(`${name}: placeholder ${match[0]} is not defined in commondefs.replacement_strings.`);
+    }
+    if (instructions.length > this.options.maxInstructions) {
+      this.warnings.push(`${name}: instructions are ${instructions.length} characters after expansion (budget ${this.options.maxInstructions}; the runtime adds about 2,000 more).`);
+    }
+    const description = (agent.function || {}).description || agent.description || "";
+    if (!String(description).trim()) {
+      this.errors.push(`${name}: function.description is required.`);
+    }
+    const parameters = (agent.function || {}).parameters || {};
+    const properties = Object.keys(parameters.properties || {});
+    // The runner passes only these fields to the called agent as plain text (runner.js argsToText).
+    const plain = properties.includes("request") || properties.includes("input") || properties.includes("input_string");
+    if (properties.length && !plain && !Object.hasOwn(parameters.properties, "mode")) {
+      this.warnings.push(`${name}: callers' arguments reach it as raw JSON. Name the text parameter "request" to pass plain text.`);
+    }
+    const tools = Array.isArray(agent.tools) ? agent.tools : [];
+    for (const tool of tools) {
+      if (typeof tool === "string" && tool.startsWith("website_")) {
+        this.errors.push(`${name}: do not list ${tool} in tools. The runtime adds website_* tools from agent-manifest.json actions.agentTools.`);
+      }
+    }
+  }
+
+  /**
+   * Read the manifest when --manifest was given.
+   *
+   * :return: The parsed manifest, or null when no manifest was given.
+   */
+  async loadManifest() {
+    if (this.options.manifest === null) {
+      return null;
+    }
+    try {
+      return JSON.parse(await readFile(this.options.manifest, "utf8"));
+    } catch (error) {
+      this.errors.push(`Manifest: ${error.message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Check that the manifest points at this network and exposes the tools the instructions use.
+   *
+   * :param manifest: The parsed agent-manifest.json.
+   * :param resolved: The network after the runtime applied commondefs and defaults.
+   * :param frontMan: The front agent name found by the runtime, or null.
+   */
+  checkManifest(manifest, resolved, frontMan) {
+    const entry = Array.isArray(manifest.networks) ? manifest.networks[0] : null;
+    if (!entry) {
+      this.errors.push("Manifest: networks[0] is missing.");
+      return;
+    }
+    const expectedFile = `./${path.basename(this.options.out)}`;
+    if (entry.name !== this.options.networkName) {
+      this.errors.push(`Manifest: networks[0].name is "${entry.name}", expected "${this.options.networkName}".`);
+    }
+    if (entry.hocon !== expectedFile) {
+      this.errors.push(`Manifest: networks[0].hocon is "${entry.hocon}", expected "${expectedFile}".`);
+    }
+    if (frontMan !== null && entry.front_man !== frontMan) {
+      this.errors.push(`Manifest: networks[0].front_man is "${entry.front_man}", but the front agent is "${frontMan}".`);
+    }
+    if ((manifest.deployment || {}).mode !== "static") {
+      this.errors.push("Manifest: deployment.mode must be \"static\".");
+    }
+    const router = manifest.llm_router || {};
+    if (!router.byok_router) {
+      this.errors.push("Manifest: llm_router.byok_router is required for BYOK.");
+    }
+    this.checkAgentTools(manifest, resolved);
+  }
+
+  /**
+   * Compare website_* names in instructions with the manifest's agentTools list.
+   *
+   * :param manifest: The parsed agent-manifest.json.
+   * :param resolved: The network after the runtime applied commondefs and defaults.
+   */
+  checkAgentTools(manifest, resolved) {
+    const actions = manifest.actions || null;
+    const agentTools = actions && Array.isArray(actions.agentTools) ? actions.agentTools : [];
+    if (actions !== null) {
+      if (actions.version !== 1) {
+        this.errors.push("Manifest: actions.version must be 1.");
+      }
+      if (!actions.module && !(Array.isArray(actions.modules) && actions.modules.length)) {
+        this.errors.push("Manifest: actions.module is required to register site actions.");
+      }
+    }
+    const mentioned = new Set();
+    const agents = Array.isArray(resolved.tools) ? resolved.tools : [];
+    for (const agent of agents) {
+      const instructions = typeof agent.instructions === "string" ? agent.instructions : "";
+      for (const match of instructions.matchAll(/website_([A-Za-z][\w-]*)/g)) {
+        mentioned.add(match[1]);
+      }
+    }
+    for (const name of mentioned) {
+      if (!agentTools.includes(name)) {
+        this.errors.push(`Instructions mention website_${name}, but "${name}" is not in manifest actions.agentTools.`);
+      }
+    }
+    for (const name of agentTools) {
+      if (!mentioned.has(name)) {
+        this.warnings.push(`actions.agentTools lists "${name}", but no instructions say when to call website_${name}.`);
+      }
+    }
+  }
+
+  /**
+   * In --check mode, report when the published JSON is out of date.
+   *
+   * :param json: The JSON text this build would write.
+   */
+  async compareOutput(json) {
+    let current = null;
+    try {
+      current = await readFile(this.options.out, "utf8");
+    } catch (error) {
+      this.errors.push(`${this.options.out} does not exist. Run without --check to create it.`);
+      return;
+    }
+    if (current !== json) {
+      this.errors.push(`${this.options.out} is out of date with ${this.options.hocon}. Run without --check.`);
+    }
+  }
+
+  /**
+   * Print the summary, warnings and errors.
+   *
+   * :param resolved: The resolved network, or null when parsing failed.
+   * :param frontMan: The front agent name, or null.
+   * :return: 1 when there are errors, otherwise 0.
+   */
+  report(resolved, frontMan) {
+    if (resolved !== null) {
+      const agents = Array.isArray(resolved.tools) ? resolved.tools : [];
+      console.log(`Network: ${this.options.networkName}`);
+      console.log(`Front agent: ${frontMan}`);
+      console.log(`Agents: ${agents.length}`);
+      for (const agent of agents) {
+        const size = typeof agent.instructions === "string" ? agent.instructions.length : 0;
+        const added = this.added && this.added.has(agent.name) ? this.added.get(agent.name) : 0;
+        const tools = Array.isArray(agent.tools) ? agent.tools.join(", ") : "";
+        console.log(`  - ${agent.name}: ${size} instruction chars (+${added} CRUSE context added by the runtime); tools: [${tools}]`);
+      }
+      if (this.websiteTools && this.websiteTools.length) {
+        console.log(`Added to every agent by the runtime: ${this.websiteTools.join(", ")}`);
+      }
+    }
+    for (const warning of this.warnings) {
+      console.log(`WARNING: ${warning}`);
+    }
+    for (const error of this.errors) {
+      console.log(`ERROR: ${error}`);
+    }
+    if (this.errors.length) {
+      console.log(`FAILED with ${this.errors.length} error(s).`);
+      return 1;
+    }
+    if (this.options.check) {
+      console.log(`OK: ${this.options.out} is up to date.`);
+    } else {
+      console.log(`OK: wrote ${this.options.out}`);
+    }
+    return 0;
+  }
+}
+
+process.exitCode = await NetworkBuilder.main(process.argv.slice(2));

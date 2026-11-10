@@ -270,6 +270,13 @@ not provide a server for other websites to submit orders. See the
 [agentified example's README](examples/pizza_restaurant_agentified/README.md)
 for component details and verification instructions.
 
+### Agentify your own website
+
+The [agentify-website skill](skills/agentify-website/SKILL.md) walks a coding agent
+through the same steps for any website, given its source folder or a public URL. Ask
+your agent to read and follow `skills/agentify-website/SKILL.md`. It needs Node.js 22
+or newer.
+
 
 ## Infrastructure
 
