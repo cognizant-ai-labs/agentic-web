@@ -76,8 +76,7 @@ Follow `references/site_actions.md`:
 ### 5. Write the network and the manifest
 
 Copy `templates/network.hocon` to `<out>/<network>.hocon`, and
-`templates/agent-manifest.json`, `templates/links.json` and `templates/agent-mcp.json`
-to `<out>/`. Replace every `<...>` and `TODO`. The network name is the `.hocon` file name
+`templates/agent-manifest.json` and `templates/links.json` to `<out>/`. Replace every `<...>` and `TODO`. The network name is the `.hocon` file name
 and must be the same everywhere. Then build:
 
 ```shell
@@ -154,7 +153,7 @@ Tell the user:
 | `runtime/` | Browser runtime; copy into each site unchanged (see `runtime/README.md`) |
 | `scripts/build_network.mjs` | HOCON → `.network.json`, with validation and checks |
 | `templates/network.hocon` | Network skeleton with shared grounding and CRUSE rules |
-| `templates/agent-manifest.json`, `links.json`, `agent-mcp.json` | Public bundle files |
+| `templates/agent-manifest.json`, `links.json` | Public bundle files |
 | `templates/site-actions.js` | Actions module for a site you can change |
 | `templates/content-actions.js` | Actions module over a content snapshot (live URL mode) |
 | `templates/site.js`, `assistant-section.html`, `assistant.css` | Mounting the assistant in the page |
