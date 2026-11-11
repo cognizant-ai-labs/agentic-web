@@ -76,9 +76,8 @@ pricing:
     input_price_per_million: 0
     output_price_per_million: 0
 cors_allow_origins:
-# List the origins of pages allowed to call Otari from the browser.
-# Each origin must match the page's address exactly: scheme, host and port.
-# Avoid using `"*"`, which lets pages on any website call your gateway.
+  # "*" lets any website call Otari from the browser. Each call still needs a valid key.
+  # To allow only your own sites, list their exact origins (scheme, host and port) instead.
   - "*"
 api_keys:
   local-test:
@@ -88,11 +87,13 @@ api_keys:
 
 - **`pricing`:** Otari refuses a model with no price (402). Give each local model you
   want to use a zero-price entry like the one above.
-- **`cors_allow_origins`:** the origins of pages allowed to call Otari from the browser.  
-  To authorize local pages, `http://127.0.0.1:8080` is where the [Quickstart](../../README.md#manually-generate-a-website-bundle) serves its bundle.  
-  To authorize specific pages, list their exact address: scheme, host and port.  
-  `http://localhost:8080` and `http://127.0.0.1:8080` are different origins.  
-  To authorize any page, use `*` (at your own risk)
+- **`cors_allow_origins`:** the origins of pages allowed to call Otari from the browser.
+  - `"*"` allows pages on any website. Otari still refuses a call without a valid key.
+  - To allow only specific sites, list their exact origins instead: scheme, host and
+    port, with no path. `http://localhost:8080` and `http://127.0.0.1:8080` are
+    different origins.
+  - The [Quickstart](../quickstart.md#manually-generate-a-website-bundle) serves its
+    bundle at `http://127.0.0.1:8080`.
 
 ### 4. Start Otari
 
@@ -129,9 +130,9 @@ Things to know:
   402 until you add a pricing entry for them.
 - **Local models are slow.** A multi-agent turn can take a minute or more.
 - **For a public site,** run Otari on a server behind HTTPS, and set Router base URL to
-  its address, such as `https://otari.example.com/api/v1`. Add your site's origin, such
-  as `https://example.com`, to `cors_allow_origins`. Browsers block an `https` page from
-  calling a plain `http` address other than `localhost`.
+  its address, such as `https://otari.example.com/api/v1`. If `cors_allow_origins` lists
+  exact origins, add your site's origin, such as `https://example.com`. Browsers block an
+  `https` page from calling a plain `http` address other than `localhost`.
 
 ## Troubleshooting
 
