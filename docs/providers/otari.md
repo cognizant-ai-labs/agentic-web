@@ -76,8 +76,10 @@ pricing:
     input_price_per_million: 0
     output_price_per_million: 0
 cors_allow_origins:
-  # Change this to the address of your site, without a path.
-  - "http://127.0.0.1:8080"
+# List the origins of pages allowed to call Otari from the browser.
+# Each origin must match the page's address exactly: scheme, host and port.
+# Avoid using `"*"`, which lets pages on any website call your gateway.
+  - "*"
 api_keys:
   local-test:
     secret: ${OTARI_LOCAL_API_KEY}
@@ -86,13 +88,11 @@ api_keys:
 
 - **`pricing`:** Otari refuses a model with no price (402). Give each local model you
   want to use a zero-price entry like the one above.
-- **`cors_allow_origins`:** the origins of pages allowed to call Otari from the browser.
-  `http://127.0.0.1:8080` is where the
-  [Quickstart](../../README.md#manually-generate-a-website-bundle) serves its bundle.
-
-Each origin must match the page's address exactly: scheme, host and port.
-`http://localhost:8080` and `http://127.0.0.1:8080` are different origins. Avoid `"*"`,
-which lets pages on any website call your gateway.
+- **`cors_allow_origins`:** the origins of pages allowed to call Otari from the browser.  
+  To authorize local pages, `http://127.0.0.1:8080` is where the [Quickstart](../../README.md#manually-generate-a-website-bundle) serves its bundle.  
+  To authorize specific pages, list their exact address: scheme, host and port.  
+  `http://localhost:8080` and `http://127.0.0.1:8080` are different origins.  
+  To authorize any page, use `*` (at your own risk)
 
 ### 4. Start Otari
 
@@ -113,7 +113,7 @@ fine here, because it creates the key from `config.yml` when it starts.
 
 ### 5. Point the site at it
 
-Open the site in a browser, for instance the Quickstart bundle at http://127.0.0.1:8080/,
+Open an agentic website in a browser,
 and expand `⚙ BYOK / router settings`:
 
 - API key: the value after `OTARI_LOCAL_API_KEY=` in `key.env`.
