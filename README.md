@@ -2,6 +2,9 @@
 
 Create, own and connect agents on today's web. [The Open Agentic Web](https://worldwideagenticweb.org).
 
+> [!IMPORTANT]
+> This repository is actively evolving and its content changes frequently.
+> Please check back often, and pull the latest version before you use anything here.
 
 ## Why
 
@@ -19,7 +22,7 @@ and agents can work across platforms regardless of who built them.
 
 An open agentic website is a public website that contains:
 - a publicly accessible `.json` file that describes an agent network and its capabilities
-- a `runtime.js` file that can run the agent network in the browser
+- a `runtime` that can run the agent network in the browser
 - an interface that allows users to interact with the agent network
 - an interface that allows users to configure the LLM and keys to use
   
@@ -38,11 +41,16 @@ It must follow the [minimum viable specification](docs/worldwide_agentic_web_mvp
 
 Open agentic websites use ordinary web technologies (HTML, CSS, JavaScript, JSON), HTTPS hosting, CORS, WebMCP, MCP and standard web browsers. They are compatible with existing web infrastructure and can be deployed on any public hosting service.
 
-
 ## Spec
 
 The minimum viable specification for a worldwide agentic web is described in [docs/worldwide_agentic_web_mvp_spec.md](docs/worldwide_agentic_web_mvp_spec.md).
 
+## Agentic Websites
+
+See the list of contributed [Agentic Websites](docs/agentic_websites.md):
+- for examples and starting points that follow the Open Agentic Web principles
+- to find other agents to connect to and grow the capabilities of your agent networks
+- to contribute your own agentic websites and let people discover them. Pull requests welcome!
 
 ## Examples
 
@@ -60,114 +68,7 @@ The LLM provider, model and key used to answer these questions are chosen by the
 
 ## Quickstart
 
-### Generate a website with Neuro SAN and a major LLM provider API key
-
-Quickly prototype an agent network using the
-[Neuro SAN BYOK](https://neuro-san.evolution.ml/multiAgentAccelerator?) service.
-
-1. In the settings (top right corner), select your LLM provider and enter your API key. 
-   Test and Save.
-   ![Neuro SAN Settings API keys](docs/images/neuro_san_settings_api_keys.png)
-  
-1. Back to the main page, click the blue "+" button to create a new agent network.  
-   ![Neuro SAN Create Agent Network](docs/images/neuro_san_create_agent_network.png)
-  
-1. In the bottom right corner, type in your prompt and click the blue "Send" arrow button. For instance:
-   ```prompt
-   Create an assistant for a pizza restaurant website, with sub agents for menu, order and delivery
-   ```
-   ![Neuro SAN ANDE prompt](docs/images/neuro_san_ande_prompt.png)  
-   The agent network designer will create an agent network and come back with
-   a proposed design and a few sample queries.
-  
-1. Click on the generated agent network that appears in the left panel menu as
-   a "Temporary" agent network to interact with it.
-   It will be available for 3 days before it is automatically deleted.  
-   ![Neuro SAN Temporary Agent Network](docs/images/neuro_san_temporary_agent_network.png)
-  
-1. The agents are not grounded yet, but you can test the agent network by typing in queries
-   and clicking the blue "Send" arrow button.  
-   ![Neuro SAN Chat](docs/images/neuro_san_chat.png)
-  
-1. Update the design as needed: click the `Edit this network` `🖊️` icon next to the
-   agent network name under "Temporary" in the left panel menu.
-   Then use the "NETWORK EDITOR" prompt at the bottom of the screen,
-   below the agent network graph to tell the agent network designer what to change.
-   
-1. Once satisfied, click the "Download network
-   definition" icon `⤓` next to the agent network, 
-   This will download the `.hocon` file describing the agent network.
-   See [examples/pizza_restaurant_website_assistant.hocon](examples/pizza_restaurant_website_assistant.hocon) for an example.
-
-### Manually generate a website bundle
-
-> [!NOTE]
-> TODO: validate hocon file before generating website bundle
-
-You can use [nsdeploy](https://github.com/cognizant-ai-lab/nsdeploy) to generate
-a website bundle from a `.hocon` file describing an agent network.
-
-1. Install [nsdeploy](https://github.com/cognizant-ai-lab/nsdeploy#install--run)  
-   ```shell
-   pip install nsdeploy
-   ```
-1. Create a self-contained static bundle  
-   ```shell
-   python -m nsdeploy examples/pizza_restaurant_website_assistant.hocon \
-     --static-bundle --out ./examples/sites/pizza_restaurant_website_assistant_static
-   ```
-1. Check the output of the command, especially for warnings about DEMO-MODE agents (ungrounded agents)
-   and omitted server tools.
-1. Preview the [generated bundle](examples/sites/pizza_restaurant_website_assistant_static)
-   with an ordinary static web server, for instance:
-   ```shell
-   python -m http.server 8080 --directory ./examples/sites/pizza_restaurant_website_assistant_static
-   ```
-   Then open http://127.0.0.1:8080/.
-
-### Test with your own LLM provider API key
-
-A configuration panel and a chat interface are available at the bottom of
-the generated web page.
-
-![Generated BYOK and chat panel collapsed](docs/images/generated_byok_chat_panel_collapsed.png)
-
-
-#### BYOK (Bring Your Own Key) / router settings
-
-Expand the `⚙ BYOK / router settings` panel and set your API key, Model and
-OpenAI compatible endpoint URL.    
-For instance:
-- API key: `*****`
-- Model: `gpt-5.2`
-- Router base URL: `https://api.openai.com/v1`
-
-Then click the `Apply, save & reload` button.
-
-> [!NOTE]
-> A static bundle calls the router straight from the browser, so the router must allow
-> browser calls (CORS). OpenAI, OpenRouter and LiteLLM do. Anthropic and hosted
-> [Otari](https://otari.ai) don't, so use the nsdeploy launcher for them. See
-> [LLM providers](docs/providers/README.md) for setup steps for each provider.
-
-![Generated BYOK and chat panel expanded](docs/images/generated_byok_chat_panel_expanded.png)
-
-#### Chat interface
-
-You can now type a request in the chat interface and click the `Send` button.  
-For instance:
-```prompt
-Do you have gluten free options?
-```
-And the agent network will respond to your request.  
-> [!NOTE]
-> Remember, your agent is not grounded yet, so it will make things up!
-
-![Generated pizza assistant chat](docs/images/generated_pizza_assistant_chat.png)
-
-#### Make it useful
-
-Now that you have all the building blocks, go ahead and make your agent network useful! Happy hacking!
+See the [Quickstart guide](docs/quickstart.md) to generate an agent network, build a website bundle, and test it with your own LLM provider API key.
 
 ## Agentifying an existing website
 
@@ -281,10 +182,18 @@ or newer.
 [`examples/guesthouse_agentified/`](examples/guesthouse_agentified/) is the version an
 agent made by following the skill.
 
+## Connect to other agent networks
+
+To expend the capabilities of your agent networks, connect them to other [Agentic Websites](docs/agentic_websites.md).
+
+> [!NOTE]
+> TODO: Add a how-to
+
 
 ## Infrastructure
 
-Build tools and infrastructure for the agentic web: what will simplify the creation, deployment, and discovery of agentic websites? What will make them more useful?
+Build tools and infrastructure for the agentic web: what will simplify the creation, deployment,
+and discovery of agentic websites? What will make them more useful?
 
 
 ## Starter tools
@@ -307,14 +216,12 @@ Try the [hosted version](https://neuro-san.evolution.ml/) with your own LLM keys
 
 An open agentic website can use Otari as its LLM router:
 - **Hosted Otari** (`https://api.otari.ai/api/v1`) blocks calls from the browser, so a
-  static bundle can't use it. One option is to serve the site with the nsdeploy launcher and
-  `--upstream https://api.otari.ai/api/v1` instead. The site relays your key to Otari.
-- **Self-hosted Otari** works with the launcher, and with a static bundle once you allow
-  the site's origin in Otari's `cors_allow_origins`. It can also run local models through
-  Ollama, with no provider key.
+  static site can't use it.
+- **Self-hosted Otari** works once you allow the site's origin in Otari's
+  `cors_allow_origins`. It can also run local models through Ollama, with no provider key.
 
 See [Using Otari](docs/providers/otari.md) for the steps, and
-[LLM providers](docs/providers/README.md) for other providers.
+[LLM providers](docs/providers/providers.md) for other providers.
 
 
 ## Testing
@@ -334,15 +241,6 @@ The agent network HOCON reference is available in
 ## Hackathon
 
 Check the official [hackathon](https://cognizant-agenticweb.devpost.com/) page for details about the Agentic Web Hackathon.
-
-## Agentic Websites
-
-These sites already follow the Open Agentic Web principles.
-Use them as examples or starting points, connect your agents, and help grow the list.
-
-| URL | Description | Notes |
-|---|---|---|
-|https://worldwideagenticweb.org/|The Open Agentic Web Challenge| Answers questions about the Open Agentic Web and how to participate in the challenge.|
 
 ## Ideas
 
