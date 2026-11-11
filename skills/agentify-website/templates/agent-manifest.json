@@ -33,7 +33,7 @@
     "reason": "This is a static bundle; a public MCP facade requires an application host."
   },
   "theme": {
-    "primary": "#0ea5e9"
+    "primary": "#2563eb"
   },
   "linking": {
     "protocol": "<protocol_name>-link/v1",

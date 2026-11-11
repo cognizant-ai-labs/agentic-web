@@ -3,8 +3,11 @@
  *
  * It records text, values, attributes, children and event handlers. It is not a browser
  * emulator: add the methods your page script calls when a test fails on a missing one.
- * If page code reads form.elements.<name>, fill "elements" in the test setup. A stubbed
- * select starts with value "", not its first option.
+ *
+ * It reads only ids and the hidden attribute from the HTML, so a select starts with
+ * value "", not its selected option. Set starting values in the test setup, and fill
+ * "elements" when page code reads form.elements or calls form.reset(). reset() restores
+ * defaultValue and defaultChecked, so set those too when they are not empty.
  */
 export class StubElement {
   /**
@@ -26,6 +29,18 @@ export class StubElement {
     this.required = false;
     this.validationMessage = "";
     this.elements = {};
+    this.provided = new Map();
+  }
+
+  /**
+   * Say what a selector other than a tag name matches inside this element. Use it for
+   * matches that do not change during the test.
+   *
+   * :param selector: The exact selector the page code uses.
+   * :param elements: The elements it finds, in page order.
+   */
+  provide(selector, elements) {
+    this.provided.set(selector, elements);
   }
 
   /**
@@ -160,10 +175,29 @@ export class StubElement {
   /**
    * Find descendants whose tag matches.
    *
-   * :param tag: The tag name to match.
+   * :param tag: The tag name to match, "<tag>:checked", or a selector given with provide().
    * :return: The matching descendants, depth first.
+   * :raises Error: When the selector is none of these, so the stub cannot match it.
    */
   querySelectorAll(tag) {
+    if (this.provided.has(tag)) {
+      return [...this.provided.get(tag)];
+    }
+    // Pages often read ticked boxes with "input:checked", so match it from each box's state.
+    const ticked = /^([a-z][a-z0-9-]*):checked$/i.exec(tag);
+    if (ticked) {
+      const found = [];
+      for (const element of this.querySelectorAll(ticked[1])) {
+        if (element.checked) {
+          found.push(element);
+        }
+      }
+      return found;
+    }
+    // An empty result for a selector the stub cannot match would let a test pass silently.
+    if (!/^[a-z][a-z0-9-]*$/i.test(tag)) {
+      throw new Error(`The stub matches tag names only, not "${tag}". Give the test its matches with element.provide(selector, elements), keep references to the elements, or test this in a browser.`);
+    }
     const found = [];
     for (const child of this.children) {
       if (child instanceof StubElement) {
@@ -179,8 +213,9 @@ export class StubElement {
   /**
    * Find the first descendant whose tag matches.
    *
-   * :param tag: The tag name to match.
+   * :param tag: The tag name to match, "<tag>:checked", or a selector given with provide().
    * :return: The first match, or null.
+   * :raises Error: When the selector is none of these, so the stub cannot match it.
    */
   querySelector(tag) {
     const found = this.querySelectorAll(tag);
@@ -206,6 +241,28 @@ export class StubElement {
   }
 
   /**
+   * Add a row to a table, as HTMLTableElement.insertRow does.
+   *
+   * :return: The new row.
+   */
+  insertRow() {
+    const row = new StubElement("tr");
+    this.children.push(row);
+    return row;
+  }
+
+  /**
+   * Add a cell to a table row, as HTMLTableRowElement.insertCell does.
+   *
+   * :return: The new cell.
+   */
+  insertCell() {
+    const cell = new StubElement("td");
+    this.children.push(cell);
+    return cell;
+  }
+
+  /**
    * Accept focus calls from page code.
    */
   focus() {
@@ -213,11 +270,25 @@ export class StubElement {
   }
 
   /**
-   * Accept reset calls from page code by clearing recorded form values.
+   * Accept reset calls from page code by putting recorded form fields back on their
+   * defaults, as a browser does.
+   *
+   * :raises Error: When no form elements are recorded, so the reset would clear nothing.
    */
   reset() {
-    for (const element of Object.values(this.elements)) {
-      element.value = "";
+    const elements = Object.values(this.elements);
+    // A reset that clears nothing would let a test of a reset pass silently.
+    if (elements.length === 0) {
+      throw new Error(`The stub form ${this.tag} has no recorded elements, so reset() would clear nothing. Fill form.elements in the test setup.`);
+    }
+    for (const element of elements) {
+      // A browser reset puts each box back on its defaultChecked and each other field
+      // back on its defaultValue.
+      if (element.type === "checkbox" || element.type === "radio") {
+        element.checked = Boolean(element.defaultChecked);
+      } else {
+        element.value = element.defaultValue === undefined ? "" : element.defaultValue;
+      }
     }
   }
 }

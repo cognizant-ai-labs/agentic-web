@@ -81,8 +81,12 @@ Tell the user this before building, so they can decide whether a companion is us
    - "To <do the operation>, give the visitor the link to <page>. You cannot do it for them."
 6. **Make the page.** Start from `templates/standalone-index.html`. It has a short
    intro, a link to the real site, and the assistant section.
-7. **Build, test and serve** as in source mode. In the tests, point the read action at
-   `site-content.json` and check that a search returns a known page.
+7. **Build, test and serve** as in source mode. In the tests, import `ContentActions`
+   from the module that `actions.module` names. Right after the import, pass the
+   parsed `site-content.json` to `ContentActions.useSnapshot()`, because Node's `fetch`
+   cannot read files. Set `READ_ACTION` to `search_site_content` and give each call to
+   it a `query`. Delete the write and irreversible tests unless the companion has such
+   actions, and check that a search returns a known page.
 
 ## Keeping it current
 

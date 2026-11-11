@@ -7,16 +7,16 @@ description: Turn an existing website into an open agentic website. Inventory th
 
 This skill turns a website into an open agentic website, as defined in the
 [Worldwide Agentic Web MVP spec](https://github.com/cognizant-ai-labs/agentic-web/blob/main/docs/worldwide_agentic_web_mvp_spec.md).
-The result is a copy of the site
-with an assistant embedded in the page. The assistant runs in the visitor's browser, uses
-the visitor's own LLM key, answers from the site's real data, and calls the site's own
-functions to act.
+The result is a copy of the site with an assistant embedded in the page. The assistant
+runs in the visitor's browser, uses the visitor's own LLM key, answers from the site's
+real data, and calls the site's own functions to act.
 
 ## What you need
 
 - **The site.** A local folder with its HTML, CSS and JavaScript (source mode), or a
   public URL (live URL mode, see `references/live_url_mode.md`).
 - **Node.js 22 or newer**, for the build script and the tests.
+- **Python 3**, or another static file server, to serve the site for the browser check.
 
 The browser runtime is in this skill's `runtime/` folder. It is nsdeploy's runtime with
 edits that let agents call the site's functions, which nsdeploy's own runtime cannot do
@@ -59,6 +59,8 @@ cp -R SKILL_DIR/runtime <out>/runtime
 ```
 
 Pick `<out>` with the user. The default is a sibling folder named `<site>_agentified`.
+If `<out>` already exists, ask the user whether to delete it or pick another folder.
+Do not copy into it: `cp -R` puts the new copy inside it and keeps the old files.
 Never change the original site or the runtime files. If the copy has a README, update its
 run command and file list for the agentified version before you finish.
 
@@ -66,11 +68,16 @@ run command and file list for the agentified version before you finish.
 
 Follow `references/site_actions.md`:
 
-1. Make the page script a module that exports a state reader and one function per
-   operation. Make the page's own buttons and forms call those same functions. An
-   operation refuses bad input by returning `{ok: false, reason}` without changing
-   anything; a thrown error is reported to the agent as "unknown outcome".
-2. Add a version counter if an irreversible action depends on changing state.
+1. Make the page script a module that exports its page object, such as a static
+   `App.page`, with a state reader and one method per operation. Make the page's own
+   buttons and forms call those same methods. An operation refuses bad input by returning
+   `{ok: false, reason}` without changing anything; a thrown error is reported to the
+   agent as "unknown outcome".
+2. Give each irreversible operation one read-only check that it calls first. Add a
+   version counter if it acts on page state that is not in its arguments, such as a
+   cart. If an amount the visitor agrees to can change by itself, such as a fee that
+   depends on today's date, also pass the amount they saw and refuse a mismatch, unless
+   the site already does.
 3. Write `<out>/site-actions.js` from `templates/site-actions.js`.
 
 ### 5. Write the network and the manifest
@@ -86,28 +93,36 @@ node SKILL_DIR/scripts/build_network.mjs <out>/<network>.hocon --manifest <out>/
 
 This writes `<out>/<network>.network.json` with the runtime's own parser, runs the
 runtime's validator, and checks for leftover `<...>` and `TODO` markers, demo mode, AAOSA,
-agents nothing can call, oversized instructions, unsupported tools, unused or unlisted
-`website_*` tools, and manifest mismatches. It also writes the discovery files, which
-copy parts of the manifest: `agent-mcp.json`, `.well-known/<protocol_name>.json` and
-`.well-known/<protocol_name>-agent.json`. It prints the tools the runtime adds to
-every agent, which the `tools` lists do not show. Fix every error.
-Fix the warnings too, or tell the user why one stays. Never edit generated files by
+agents nothing can call, agents with no model, oversized instructions, unsupported tools,
+unused or unlisted `website_*` tools, and manifest mismatches. It also writes the
+discovery files, which copy parts of the manifest: `agent-mcp.json`,
+`.well-known/<protocol_name>.json` and `.well-known/<protocol_name>-agent.json`. It prints
+the tools the runtime adds to every agent, which the `tools` lists do not show. Fix every
+error. Fix the warnings too, or tell the user why one stays. Never edit generated files by
 hand: change the `.hocon` or the manifest and rebuild.
 
 ### 6. Mount the assistant
 
 Follow `references/bundle_and_hosting.md`:
 
-1. Add `templates/assistant-section.html` to the page and `templates/assistant.css` to its
-   stylesheet. Set the `--ns-*` colors and `theme.primary` to the site's palette.
+1. Add `templates/assistant-section.html` to the page, with its heading and sentence
+   filled in, and `templates/assistant.css` to its stylesheet. Set the `--ns-*` colors
+   and `theme.primary` to the site's palette. White text sits on `--ns-primary` and
+   `--ns-accent`, so keep both dark enough.
 2. Copy `templates/site.js` to `<out>/site.js` and load it with `<script type="module">`.
-   Adapt `review()` so the confirmation dialog shows real details, or remove it.
+   Write a `GREETING`, and fill in `DIALOGS` for each `irreversible` action. Name the
+   buttons after what they do, such as "Keep the booking", not "Cancel". Give
+   `reviewDetails` the real details, such as items, total, name and email, and what
+   undoing it would cost, such as a cancellation fee. The dialog opens before the
+   operation runs, so `reviewDetails` also calls the operation's read-only check. When
+   it refuses, return `{refusal: reason}`: no dialog opens, and the agent gets the
+   site's reason.
 3. The page must still work when the assistant fails to boot.
 
 ### 7. Test
 
-Copy `templates/tests/` to `<out>/tests/`, fill in the TODOs, and add one test per write
-and irreversible action (see `references/site_actions.md`). Then run:
+Copy `templates/tests/` to `<out>/tests/`, fill in the TODOs, and add the tests in "Test
+every action" in `references/site_actions.md`. Then run:
 
 ```shell
 node SKILL_DIR/scripts/build_network.mjs <out>/<network>.hocon --manifest <out>/agent-manifest.json --check
@@ -116,25 +131,35 @@ node --test "<out>/tests/*.test.mjs"
 
 Quote the glob. Node 22 does not accept a bare folder after `--test`.
 
-Then serve the site with `python -m http.server 8080 --directory <out>`. If the user wants a
-live check, ask them to enter their own key in the BYOK panel and try each sample query.
-Never ask the user to paste a key into the chat.
+Then serve the site with `python3 -m http.server 8080 --bind 127.0.0.1 --directory <out>`
+(on Windows, `python`). To check a chat form, a choice list and the confirmation dialog
+without a key, use the console check in "Check without a key" in
+`references/bundle_and_hosting.md`.
+
+If the user wants a live check, ask them to enter their own key in the BYOK panel and try
+each sample query. Never ask the user to paste a key into the chat. On `localhost` and
+`127.0.0.1`, the runtime also saves keys in a cookie that any local site can read, so
+suggest a key with a low spending limit. Afterwards, they should delete the saved setup
+and close the tab: the tab keeps using the key until it is closed (see "Serving and trying
+it" in `references/bundle_and_hosting.md`).
 
 ### 8. Report
 
 Tell the user:
 
 - where the output is and how to run it;
-- the network URL others use to reach it once it is hosted (the folder that holds
-  `agent-manifest.json`, then the network name), and where it can be listed (see
-  "How others find the site" in `references/bundle_and_hosting.md`);
+- where the site can be listed once it is hosted (see "How others find the site" in
+  `references/bundle_and_hosting.md`);
+- the headers to set when it is hosted, with the real file names (see "Static hosting"
+  in `references/bundle_and_hosting.md`);
 - the network (agents and their tools) and the actions (name, effect, wrapped function);
 - what the assistant can answer and do, and what it declines;
 - the exact test commands and their results;
 - the limits: static hosting only; the runtime is a patched copy of nsdeploy's; `write`
   actions run without showing the visitor first, which the spec does not allow; every
-  agent can see every `website_*` tool; the LLM provider must allow CORS; the network
-  file, including instructions, is public.
+  agent can see every `website_*` tool; other agent sites cannot call this network yet,
+  and it does not call theirs; the LLM provider must allow CORS; the network file,
+  including instructions, is public.
 
 ## Rules
 

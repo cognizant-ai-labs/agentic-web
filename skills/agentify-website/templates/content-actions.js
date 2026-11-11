@@ -75,11 +75,13 @@ export class ContentActions {
             type: "string",
             minLength: 1,
             maxLength: 200,
+            description: "Words to search for, from the visitor's question.",
           },
           limit: {
             type: "integer",
             minimum: 1,
             maximum: 10,
+            description: "How many pages to return. Leave out for 5.",
           },
         },
       },
@@ -106,10 +108,12 @@ export class ContentActions {
           collection: {
             type: "string",
             enum: collections.length ? collections : ["none"],
+            description: "Which collection of records to read.",
           },
           id: {
             type: "string",
             maxLength: 200,
+            description: "One record id from an earlier result. Leave out for the whole collection, up to 50 records.",
           },
         },
       },

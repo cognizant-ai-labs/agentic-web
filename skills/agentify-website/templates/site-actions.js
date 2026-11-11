@@ -2,13 +2,14 @@
 // agent-manifest.json loads this module through "actions.module". Only the names in
 // "actions.agentTools" become model tools, called website_<name>.
 //
-// TODO: import the site's own exported state and operation functions. Wrap them here;
-// do not copy their business rules into this file.
+// TODO: import the class the page script exports, as site.js does, and wrap its
+// operations here. Do not copy their business rules into this file.
 // Operations return {ok: false, reason, field} when they refuse input, before changing
 // anything, and throw only on unexpected failures. A throw is reported as "unknown".
 // Import the page script by the same URL the page uses (no ?v= query), or the actions
-// get a second, separate copy of the page state.
-import { getSiteState, addItem, submitOrder, catalogIds } from "./script.js";
+// get a second, separate copy of the page state. On a site with several modules, import
+// the module that keeps the page object.
+import { App } from "./script.js";
 
 /**
  * Describes the site's operations as actions the agents can call.
@@ -54,7 +55,7 @@ class SiteActions {
    * :return: The page state as plain JSON data.
    */
   static readState() {
-    return getSiteState();
+    return App.page.getState();
   }
 
   /**
@@ -76,12 +77,14 @@ class SiteActions {
           // An enum of real IDs stops the model from inventing items.
           id: {
             type: "string",
-            enum: catalogIds(),
+            enum: App.page.catalogIds(),
+            description: "TODO: Item id from website_get_site_state.",
           },
           quantity: {
             type: "integer",
             minimum: 1,
             maximum: 100,
+            description: "TODO: How many to add.",
           },
         },
       },
@@ -96,7 +99,7 @@ class SiteActions {
    * :return: The updated page state, which becomes the tool receipt.
    */
   static addItem(args) {
-    return addItem(args.id, args.quantity);
+    return App.page.addItem(args.id, args.quantity);
   }
 
   /**
@@ -107,7 +110,7 @@ class SiteActions {
   static submitOrderAction() {
     return {
       name: "submit_order",
-      description: "TODO: Place the <order> for the current <cart>. Use expectedVersion from get_site_state. Returns the receipt, or ok false with a reason (for example when the cart changed).",
+      description: "TODO: Place the <order> for the current <cart>. The browser asks the visitor to confirm first. The site refuses a stale expectedVersion. Returns the receipt.",
       // "irreversible" makes the runtime open a confirmation dialog before execute runs.
       effect: "irreversible",
       inputSchema: {
@@ -119,10 +122,12 @@ class SiteActions {
             type: "string",
             minLength: 1,
             maxLength: 80,
+            description: "TODO: The name the visitor gave.",
           },
           expectedVersion: {
             type: "integer",
             minimum: 0,
+            description: "TODO: version from website_get_site_state, read in this turn.",
           },
         },
       },
@@ -138,7 +143,7 @@ class SiteActions {
    * :raises Error: Only on an unexpected failure; the runtime then reports "unknown".
    */
   static submitOrder(args) {
-    return submitOrder(args);
+    return App.page.submitOrder(args);
   }
 }
 

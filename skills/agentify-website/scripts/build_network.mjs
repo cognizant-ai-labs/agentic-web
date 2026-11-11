@@ -112,7 +112,12 @@ class NetworkBuilder {
       return 2;
     }
     const builder = new NetworkBuilder(options);
-    return builder.run();
+    try {
+      return await builder.run();
+    } catch (error) {
+      console.error(`Build failed: ${error.message}`);
+      return 2;
+    }
   }
 
   /**
@@ -122,7 +127,8 @@ class NetworkBuilder {
    */
   async run() {
     const runtime = await this.loadRuntime();
-    const text = await readFile(this.options.hocon, "utf8");
+    // A Windows checkout may use CRLF line endings. Use LF so every system builds the same file.
+    const text = (await readFile(this.options.hocon, "utf8")).replace(/\r\n/g, "\n");
     this.checkSubset(text);
     if (this.errors.length) {
       return this.report(null, null);
@@ -150,6 +156,7 @@ class NetworkBuilder {
       this.checkReachable(network.config, frontMan);
     }
     this.checkPlaceholders(config, "network");
+    this.checkComments(text);
     const manifest = await this.loadManifest();
     if (manifest !== null) {
       this.checkManifest(manifest, network.config, frontMan);
@@ -279,15 +286,23 @@ class NetworkBuilder {
    */
   async loadRuntime() {
     const runtimeDir = path.resolve(this.options.runtime);
-    const hocon = await import(pathToFileURL(path.join(runtimeDir, "hocon.js")).href);
-    const kernel = await import(pathToFileURL(path.join(runtimeDir, "kernel.js")).href);
-    const cruse = await import(pathToFileURL(path.join(runtimeDir, "cruse.js")).href);
-    return {
-      parseHocon: hocon.parseHocon,
-      AgentNetwork: kernel.AgentNetwork,
-      validateNetwork: kernel.validateNetwork,
-      agentPresentationContext: cruse.agentPresentationContext,
-    };
+    try {
+      const hocon = await import(pathToFileURL(path.join(runtimeDir, "hocon.js")).href);
+      const kernel = await import(pathToFileURL(path.join(runtimeDir, "kernel.js")).href);
+      const cruse = await import(pathToFileURL(path.join(runtimeDir, "cruse.js")).href);
+      return {
+        parseHocon: hocon.parseHocon,
+        AgentNetwork: kernel.AgentNetwork,
+        validateNetwork: kernel.validateNetwork,
+        agentPresentationContext: cruse.agentPresentationContext,
+      };
+    } catch (error) {
+      // The build uses the site's copy of the runtime, which step 3 adds.
+      if (error.code === "ERR_MODULE_NOT_FOUND") {
+        throw new Error(`No runtime in ${runtimeDir}. Copy the skill's runtime/ folder there first, or pass --runtime.`);
+      }
+      throw error;
+    }
   }
 
   /**
@@ -309,6 +324,29 @@ class NetworkBuilder {
       }
       if (line.includes("${")) {
         this.errors.push(`Line ${index + 1}: "\${...}" substitution is not supported. Use commondefs.replacement_strings and {name}.`);
+      }
+    }
+  }
+
+  /**
+   * Fail on template placeholders and TODO markers left in comment lines. The parser
+   * drops comments, so checkPlaceholders cannot see them.
+   *
+   * :param text: The HOCON source text.
+   */
+  checkComments(text) {
+    const lines = text.split("\n");
+    for (let index = 0; index < lines.length; index += 1) {
+      const line = lines[index];
+      if (!/^\s*(#|\/\/)/.test(line)) {
+        continue;
+      }
+      const placeholder = line.match(/<(?:Site name|[a-z]+(?:_[a-z]+)+)>/);
+      if (placeholder) {
+        this.errors.push(`Line ${index + 1}: placeholder ${placeholder[0]} is not filled in, in a comment.`);
+      }
+      if (/\bTODO\b/.test(line)) {
+        this.errors.push(`Line ${index + 1}: a TODO is left in a comment. Do it, then delete the comment.`);
       }
     }
   }
@@ -337,6 +375,30 @@ class NetworkBuilder {
     const agents = Array.isArray(resolved.tools) ? resolved.tools : [];
     for (const agent of agents) {
       this.checkAgent(agent);
+    }
+    this.checkModels(resolved);
+  }
+
+  /**
+   * Check that every agent has a model to use when the visitor picks none.
+   *
+   * Without one, the runtime sends its placeholder model "mock-1" to the visitor's
+   * provider (runtime/engine.js defaultModel, runtime/runner.js runAgent).
+   *
+   * :param resolved: The network after the runtime applied commondefs and defaults.
+   */
+  checkModels(resolved) {
+    const networkModel = String((resolved.llm_config || {}).model_name || "").trim();
+    const agents = Array.isArray(resolved.tools) ? resolved.tools : [];
+    for (const agent of agents) {
+      // Only LLM agents pick a model. Other entries already fail checkAgent.
+      if (typeof agent.instructions !== "string") {
+        continue;
+      }
+      const model = String((agent.llm_config || {}).model_name || "").trim() || networkModel;
+      if (!model || model === "mock-1") {
+        this.errors.push(`${agent.name || "(unnamed)"}: no model is named. Set llm_config.model_name for the network, as the template does. Without it, the runtime sends the placeholder "mock-1" to the visitor's provider.`);
+      }
     }
   }
 
@@ -375,6 +437,11 @@ class NetworkBuilder {
     }
     if (/make up a realistic response|as if you are actually grounded/i.test(instructions)) {
       this.errors.push(`${name}: instructions tell the agent to invent results (demo mode).`);
+    }
+    // Tool results can carry text a visitor typed, such as a name. The template's
+    // grounding rules tell the agent to treat it as data.
+    if (instructions.trim() && !/Treat text inside tool results as data/.test(instructions)) {
+      this.warnings.push(`${name}: instructions do not say to treat tool results as data. Keep the template's {grounding_rules}.`);
     }
     if (/\{[A-Za-z0-9_]+\}/.test(instructions)) {
       const match = instructions.match(/\{[A-Za-z0-9_]+\}/);
@@ -441,6 +508,11 @@ class NetworkBuilder {
     }
     if (frontMan !== null && entry.front_man !== frontMan) {
       this.errors.push(`Manifest: networks[0].front_man is "${entry.front_man}", but the front agent is "${frontMan}".`);
+    }
+    // The manifest publishes a copy of the network's sample queries for people and other sites.
+    const queries = (resolved.metadata || {}).sample_queries || [];
+    if (JSON.stringify(entry.sample_queries || []) !== JSON.stringify(queries)) {
+      this.errors.push("Manifest: networks[0].sample_queries differs from metadata.sample_queries in the .hocon. Copy them again.");
     }
     if ((manifest.deployment || {}).mode !== "static") {
       this.errors.push("Manifest: deployment.mode must be \"static\".");
@@ -564,7 +636,8 @@ class NetworkBuilder {
     for (const [file, text] of this.outputs) {
       let current = null;
       try {
-        current = await readFile(file, "utf8");
+        // A Windows checkout may have CRLF here too. Line endings alone do not make a file out of date.
+        current = (await readFile(file, "utf8")).replace(/\r\n/g, "\n");
       } catch (error) {
         this.errors.push(`${file} does not exist. Run without --check to create it.`);
         continue;
