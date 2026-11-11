@@ -41,11 +41,14 @@ It must follow the [minimum viable specification](docs/worldwide_agentic_web_mvp
 
 Open agentic websites use ordinary web technologies (HTML, CSS, JavaScript, JSON), HTTPS hosting, CORS, WebMCP, MCP and standard web browsers. They are compatible with existing web infrastructure and can be deployed on any public hosting service.
 
-
 ## Spec
 
 The minimum viable specification for a worldwide agentic web is described in [docs/worldwide_agentic_web_mvp_spec.md](docs/worldwide_agentic_web_mvp_spec.md).
 
+## Agentic Websites
+
+Connect your agents to other [Agentic Websites](docs/agentic_websites.md) and grow the list!
+Or use them as examples and starting points that follow the Open Agentic Web principles.
 
 ## Examples
 
@@ -217,15 +220,6 @@ The agent network HOCON reference is available in
 ## Hackathon
 
 Check the official [hackathon](https://cognizant-agenticweb.devpost.com/) page for details about the Agentic Web Hackathon.
-
-## Agentic Websites
-
-These sites already follow the Open Agentic Web principles.
-Use them as examples or starting points, connect your agents, and help grow the list.
-
-| URL | Description | Notes |
-|---|---|---|
-|https://worldwideagenticweb.org/|The Open Agentic Web Challenge| Answers questions about the Open Agentic Web and how to participate in the challenge.|
 
 ## Ideas
 
