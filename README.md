@@ -189,10 +189,6 @@ and discovery of agentic websites? What will make them more useful?
 
 These optional tools can help you get started quickly with building agentic web applications.
 
-### NANDA’s Index agent registry
-
-[Nanda Index](https://nandaindex.org/) lets agents find and verify one another across the network. Use it to find other agents, register your own agents, and verify the authenticity of agents you interact with.
-
 ### Cognizant AI Lab’s Neuro SAN
 
 [Neuro SAN Studio](https://github.com/cognizant-ai-lab/neuro-san-studio) is an open-source framework
@@ -212,6 +208,10 @@ An open agentic website can use Otari as its LLM router:
 See [Using Otari](docs/providers/otari.md) for the steps, and
 [LLM providers](docs/providers/providers.md) for other providers.
 
+### NANDA’s Index agent registry
+
+[Nanda Index](https://nandaindex.org/) lets agents find and verify one another across the network. Use it to find other agents, register your own agents, and verify the authenticity of agents you interact with.
+
 
 ## Testing
 
@@ -221,9 +221,94 @@ Run the validation script to check your submission is compliant.
 
 ## Documentation
 
+### Definition of an agent in .json
+
+An agent is defined as part of an **agent network**. The published `.network.json`
+file is a data-only description of the agents, their instructions, and the
+capabilities they can call. JSON is a valid serialization of the canonical HOCON
+representation; published files must have includes and substitutions resolved and
+must not depend on local files or environment variables. See
+[sections 2.1–2.2 of the MVP specification](docs/worldwide_agentic_web_mvp_spec.md#21-minimum-network-content).
+
+The network's top-level `tools` array contains its agent definitions. Each agent has:
+
+| Field | Purpose |
+| --- | --- |
+| `name` | A unique name within the network, used by other agents to reference it. |
+| `function.description` | A description of what the agent can do, so callers can decide when to use it. |
+| `function.parameters` | A JSON Schema describing the inputs accepted when calling the agent. |
+| `instructions` | Instructions for the LLM: its role, grounding, constraints, and how to fulfill requests. |
+| `tools` | The agents or capabilities it can call, such as local agent names, published peer-network URLs, or MCP descriptors. An empty list declares no downstream references. |
+
+This shortened example follows the structure of the
+[pizza restaurant network](examples/pizza_restaurant_agentified/pizza_restaurant_website_assistant.network.json).
+It keeps only the coordinator and menu specialist, with simplified instructions
+and invocation schemas:
+
+```json
+{
+  "metadata": {
+    "description": "Help customers with the Little Oven Pizza menu."
+  },
+  "tools": [
+    {
+      "name": "front_desk_coordinator",
+      "function": {
+        "description": "Answer menu questions by consulting the menu specialist.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "inquiry": { "type": "string" }
+          },
+          "required": ["inquiry"]
+        }
+      },
+      "instructions": "Delegate menu questions to menu_specialist and summarize its answer. Never invent menu items or prices.",
+      "tools": ["menu_specialist"]
+    },
+    {
+      "name": "menu_specialist",
+      "function": {
+        "description": "Explain menu items, ingredients, dietary labels, allergens and prices.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "inquiry": { "type": "string" }
+          },
+          "required": ["inquiry"]
+        }
+      },
+      "instructions": "Use only the current Restaurant state supplied by the website. Explain when information is unavailable.",
+      "tools": []
+    }
+  ]
+}
+```
+
+The site's separate `agent-manifest.json` identifies the network through `name`,
+selects its public entry point through `front_man` (here,
+`front_desk_coordinator`), and points `hocon` to the published `.network.json`
+file. See the [pizza restaurant manifest](examples/pizza_restaurant_agentified/agent-manifest.json).
+The browser runtime loads this definition, runs the entry agent, and dispatches
+its calls to the referenced specialists or tools.
+
+The full pizza example also includes an invocation `mode` for its AAOSA
+delegation protocol (`Determine`, `Fulfill`, or `Follow up`), shared instruction
+fields, `llm_config`, an execution time limit, and presentation and deployment
+settings. These illustrate additional configuration beyond the basic agent
+definition. Model settings are hints; when loading a peer network, the caller's
+active router and model policy take precedence.
+
+Instructions alone do not supply live data or execute website operations. The
+pizza website supplies current restaurant state and registers cart and checkout
+actions with the runtime. Action arguments are validated, and checkout requires
+browser confirmation. Published definitions and instructions are public: keep
+credentials out of them and explicitly control any private context shared across
+agent-site boundaries.
+
 ### HOCON reference
 
-The agent network HOCON reference is available in 
+The full agent network HOCON reference is available in 
 [this document](https://github.com/cognizant-ai-lab/neuro-san/blob/main/docs/agent_hocon_reference.md).
 
 
