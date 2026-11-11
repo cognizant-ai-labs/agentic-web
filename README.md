@@ -47,6 +47,7 @@ The minimum viable specification for a worldwide agentic web is described in [do
 
 ## Agentic Websites
 
+See [Agentic Websites](docs/agentic_websites.md) for examples and starting points that follow the Open Agentic Web principles.
 Connect your agents to other [Agentic Websites](docs/agentic_websites.md) and grow the list!
 Or use them as examples and starting points that follow the Open Agentic Web principles.
 
@@ -169,10 +170,18 @@ not provide a server for other websites to submit orders. See the
 [agentified example's README](examples/pizza_restaurant_agentified/README.md)
 for component details and verification instructions.
 
+## Connect to other agent networks
+
+To expend the capabilities of your agent networks, connect them to other [Agentic Websites](docs/agentic_websites.md).
+
+> [!NOTE]
+> TODO: Add a how-to
+
 
 ## Infrastructure
 
-Build tools and infrastructure for the agentic web: what will simplify the creation, deployment, and discovery of agentic websites? What will make them more useful?
+Build tools and infrastructure for the agentic web: what will simplify the creation, deployment,
+and discovery of agentic websites? What will make them more useful?
 
 
 ## Starter tools
