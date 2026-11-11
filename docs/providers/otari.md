@@ -21,7 +21,7 @@ The browser calls the router itself, so the router must allow browser calls (COR
 An empty Router base URL means the `--upstream` URL given at build time.
 
 OpenAI allows browser calls, which is why the static bundle in the
-[Quickstart](../../README.md#manually-generate-a-website-bundle) works with it. Hosted Otari
+[Quickstart](../quickstart.md#manually-generate-a-website-bundle) works with it. Hosted Otari
 does not.
 
 ## Hosted Otari (otari.ai)
