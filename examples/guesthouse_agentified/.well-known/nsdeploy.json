@@ -1,0 +1,18 @@
+{
+  "protocol": "nsdeploy-link/v1",
+  "exports": [
+    {
+      "network": "tidewhistle_guesthouse",
+      "front_man": "tidewhistle_assistant",
+      "aliases": [
+        "tidewhistle_guesthouse",
+        "tidewhistle_assistant"
+      ],
+      "url": "tidewhistle_guesthouse"
+    }
+  ],
+  "imports": [],
+  "link_updates": {
+    "mode": "browser-local"
+  }
+}

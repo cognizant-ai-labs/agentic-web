@@ -1,0 +1,7 @@
+{
+  "protocol": "nsdeploy-agent-mcp/v1",
+  "network": "tidewhistle_guesthouse",
+  "front_man": "tidewhistle_assistant",
+  "available": false,
+  "reason": "This is a static bundle; a public MCP facade requires an application host."
+}
