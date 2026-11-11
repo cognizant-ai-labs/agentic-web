@@ -35,7 +35,9 @@ The assistant requires a configured provider; the manual website does not.
 4. Ask to check out for pickup or delivery. Supply a name, an address for delivery,
    and optionally a time today. When several details are missing, the assistant
    collects them together in one CRUSE form, carrying forward answers already
-   given. Submitting this form supplies the details to the agent; it then calls
+   given. Pickup and Delivery appear as selectable cards. The optional native
+   time picker accepts a time today; leave it empty for ASAP.
+   Submitting this form supplies the details to the agent; it then calls
    `website_checkout_demo_order`.
    Confirm its browser review dialog after checking the cart and total. The cart clears and the site
    displays the same confirmation it uses for manual orders.
@@ -70,7 +72,8 @@ Adapted from that bundle:
   These widgets survive plain-text final answers and specialist handoffs.
   `cruse.js` accepts unfenced structured responses and combines compatible
   child intake forms when the coordinator does not provide its own composition.
-  The other runtime files remain unchanged.
+  `ui.js` supports native time inputs and friendly enum labels, with accessible
+  fieldset groups for radio choices. Other runtime files remain unchanged.
 - `agent-manifest.json`: restaurant branding, supported sample queries, local
   specialist links, the `actions.module` registration entry, and an explicit
   `actions.agentTools` list for state reads, cart changes and confirmed checkout.

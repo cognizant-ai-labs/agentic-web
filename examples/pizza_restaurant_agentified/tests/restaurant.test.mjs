@@ -319,9 +319,11 @@ test("a consolidated CRUSE intake form survives tool exposure and feeds checkout
             schema: {
               type: "object", properties: {
                 customerName: { type: "string", title: "Your name" },
-                fulfillment: { type: "string", enum: ["pickup", "delivery"] },
+                fulfillment: { type: "string", enum: ["pickup", "delivery"],
+                  "x-ui": { widget: "radio", enumLabels: ["Pickup", "Delivery"] } },
                 address: { type: "string", title: "Delivery address (only for delivery)" },
-                orderTime: { type: "string", title: "Time today (HH:MM; blank for ASAP)" },
+                orderTime: { type: "string", format: "time", title: "Preferred time today",
+                  description: "Leave empty for ASAP, or choose a time today." },
               }, required: ["customerName", "fulfillment"],
             }, submitLabel: "Review order",
           }],
@@ -348,6 +350,10 @@ test("a consolidated CRUSE intake form survives tool exposure and feeds checkout
   const intake = first.presentation.components[0];
   assert.equal(intake.kind, "form");
   assert.equal(Object.keys(intake.schema.properties).length, 4);
+  assert.deepEqual(intake.schema.properties.fulfillment["x-ui"], {
+    widget: "radio", enumLabels: ["Pickup", "Delivery"],
+  });
+  assert.equal(intake.schema.properties.orderTime.format, "time");
   assert(!intake.submit, "Intake supplies answers without executing an action");
   assert.equal(reviews, 0);
   assert.equal(getRestaurantState().total, 2400);
