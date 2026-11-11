@@ -25,10 +25,18 @@
     "deny_origins": [],
     "note": "Local agents and page-local actions only."
   },
+  "agent_mcp": {
+    "protocol": "<protocol_name>-agent-mcp/v1",
+    "network": "<network_name>",
+    "front_man": "<front_agent_name>",
+    "available": false,
+    "reason": "This is a static bundle; a public MCP facade requires an application host."
+  },
   "theme": {
     "primary": "#0ea5e9"
   },
   "linking": {
+    "protocol": "<protocol_name>-link/v1",
     "exports": [
       {
         "network": "<network_name>",

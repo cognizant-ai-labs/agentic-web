@@ -18,5 +18,8 @@ Edited files:
 - `cruse.js` accepts CRUSE replies without code fences and merges forms from several
   agents into one.
 
+Protocol name: `nsdeploy`. Use it for `<protocol_name>` in `agent-manifest.json`. It
+names the discovery files, such as `.well-known/nsdeploy.json`, that nsdeploy's tools read.
+
 Do not edit these files for one site. When nsdeploy's own runtime offers these tools,
 use it instead of this copy.

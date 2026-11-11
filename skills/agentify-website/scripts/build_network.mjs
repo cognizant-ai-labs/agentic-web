@@ -6,9 +6,12 @@
 //        [--max-instructions 4000]
 //
 // The script parses the HOCON with the bundle's own runtime parser, so the published
-// file is exactly what the browser will load. It exits with code 1 when it finds errors.
+// file is exactly what the browser will load. With --manifest it also writes the
+// discovery files, which copy parts of the manifest: agent-mcp.json,
+// .well-known/<protocol_name>.json and .well-known/<protocol_name>-agent.json.
+// It exits with code 1 when it finds errors.
 
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -29,6 +32,10 @@ class NetworkBuilder {
     this.options = options;
     this.errors = [];
     this.warnings = [];
+    // Output file path -> the text this build writes there.
+    this.outputs = new Map();
+    // Taken from the manifest's linking.protocol, for example "nsdeploy".
+    this.protocolName = null;
   }
 
   /**
@@ -109,7 +116,7 @@ class NetworkBuilder {
   }
 
   /**
-   * Parse, check and (unless --check) write the network JSON.
+   * Parse, check and (unless --check) write the network JSON and discovery files.
    *
    * :return: The process exit code, 0 when there are no errors.
    */
@@ -150,11 +157,14 @@ class NetworkBuilder {
     }
     this.added = this.runtimeContextSizes(runtime, network, frontMan);
     this.websiteTools = this.offeredTools(manifest, network.config);
-    const json = `${JSON.stringify(config, null, 2)}\n`;
+    this.outputs.set(this.options.out, `${JSON.stringify(config, null, 2)}\n`);
+    if (manifest !== null) {
+      this.addDiscoveryFiles(manifest);
+    }
     if (this.options.check) {
-      await this.compareOutput(json);
+      await this.compareOutputs();
     } else if (!this.errors.length) {
-      await writeFile(this.options.out, json);
+      await this.writeOutputs();
     }
     return this.report(network.config, frontMan);
   }
@@ -439,7 +449,75 @@ class NetworkBuilder {
     if (!router.byok_router) {
       this.errors.push("Manifest: llm_router.byok_router is required for BYOK.");
     }
+    this.checkDiscovery(manifest, frontMan);
     this.checkAgentTools(manifest, resolved);
+  }
+
+  /**
+   * Check the manifest parts that the discovery files copy, and find the protocol name.
+   *
+   * The protocol name is the part of linking.protocol before "-link/v1", for example
+   * "nsdeploy". It names the .well-known files, and agent_mcp.protocol must use it too.
+   *
+   * :param manifest: The parsed agent-manifest.json.
+   * :param frontMan: The front agent name found by the runtime, or null.
+   */
+  checkDiscovery(manifest, frontMan) {
+    const linking = manifest.linking || null;
+    const agentMcp = manifest.agent_mcp || null;
+    if (linking === null || agentMcp === null) {
+      this.errors.push("Manifest: linking and agent_mcp are required. Copy them from templates/agent-manifest.json.");
+      return;
+    }
+    const exportList = Array.isArray(linking.exports) ? linking.exports : [];
+    let exported = false;
+    for (const entry of exportList) {
+      if (entry.network === this.options.networkName) {
+        exported = true;
+      }
+    }
+    if (!exported) {
+      this.errors.push(`Manifest: linking.exports has no entry for "${this.options.networkName}".`);
+    }
+    if (agentMcp.network !== this.options.networkName) {
+      this.errors.push(`Manifest: agent_mcp.network is "${agentMcp.network}", expected "${this.options.networkName}".`);
+    }
+    if (frontMan !== null && agentMcp.front_man !== frontMan) {
+      this.errors.push(`Manifest: agent_mcp.front_man is "${agentMcp.front_man}", but the front agent is "${frontMan}".`);
+    }
+    const protocol = String(linking.protocol || "");
+    // checkPlaceholders already reports an unfilled <protocol_name>.
+    if (protocol.includes("<")) {
+      return;
+    }
+    const match = protocol.match(/^([a-z][a-z0-9-]*)-link\/v1$/);
+    if (!match) {
+      this.errors.push(`Manifest: linking.protocol is "${protocol}", expected "<protocol_name>-link/v1".`);
+      return;
+    }
+    const expected = `${match[1]}-agent-mcp/v1`;
+    if (agentMcp.protocol !== expected) {
+      this.errors.push(`Manifest: agent_mcp.protocol is "${agentMcp.protocol}", expected "${expected}".`);
+      return;
+    }
+    this.protocolName = match[1];
+  }
+
+  /**
+   * Add the discovery files to the outputs. Each one is a copy of part of the manifest.
+   *
+   * :param manifest: The parsed agent-manifest.json.
+   */
+  addDiscoveryFiles(manifest) {
+    if (this.protocolName === null) {
+      return;
+    }
+    const siteDir = path.dirname(this.options.manifest);
+    const wellKnown = path.join(siteDir, ".well-known");
+    const agentMcp = `${JSON.stringify(manifest.agent_mcp, null, 2)}\n`;
+    this.outputs.set(path.join(siteDir, "agent-mcp.json"), agentMcp);
+    this.outputs.set(path.join(wellKnown, `${this.protocolName}.json`), `${JSON.stringify(manifest.linking, null, 2)}\n`);
+    this.outputs.set(path.join(wellKnown, `${this.protocolName}-agent.json`), agentMcp);
   }
 
   /**
@@ -480,20 +558,30 @@ class NetworkBuilder {
   }
 
   /**
-   * In --check mode, report when the published JSON is out of date.
-   *
-   * :param json: The JSON text this build would write.
+   * In --check mode, report each output file that is missing or out of date.
    */
-  async compareOutput(json) {
-    let current = null;
-    try {
-      current = await readFile(this.options.out, "utf8");
-    } catch (error) {
-      this.errors.push(`${this.options.out} does not exist. Run without --check to create it.`);
-      return;
+  async compareOutputs() {
+    for (const [file, text] of this.outputs) {
+      let current = null;
+      try {
+        current = await readFile(file, "utf8");
+      } catch (error) {
+        this.errors.push(`${file} does not exist. Run without --check to create it.`);
+        continue;
+      }
+      if (current !== text) {
+        this.errors.push(`${file} is out of date with the HOCON or the manifest. Run without --check.`);
+      }
     }
-    if (current !== json) {
-      this.errors.push(`${this.options.out} is out of date with ${this.options.hocon}. Run without --check.`);
+  }
+
+  /**
+   * Write every output file, creating the .well-known folder when needed.
+   */
+  async writeOutputs() {
+    for (const [file, text] of this.outputs) {
+      await mkdir(path.dirname(file), { recursive: true });
+      await writeFile(file, text);
     }
   }
 
@@ -530,10 +618,9 @@ class NetworkBuilder {
       console.log(`FAILED with ${this.errors.length} error(s).`);
       return 1;
     }
-    if (this.options.check) {
-      console.log(`OK: ${this.options.out} is up to date.`);
-    } else {
-      console.log(`OK: wrote ${this.options.out}`);
+    console.log(this.options.check ? "OK: these files are up to date:" : "OK: wrote these files:");
+    for (const file of this.outputs.keys()) {
+      console.log(`  - ${file}`);
     }
     return 0;
   }

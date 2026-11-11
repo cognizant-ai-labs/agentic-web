@@ -76,8 +76,9 @@ Follow `references/site_actions.md`:
 ### 5. Write the network and the manifest
 
 Copy `templates/network.hocon` to `<out>/<network>.hocon`, and
-`templates/agent-manifest.json` and `templates/links.json` to `<out>/`. Replace every `<...>` and `TODO`. The network name is the `.hocon` file name
-and must be the same everywhere. Then build:
+`templates/agent-manifest.json` and `templates/links.json` to `<out>/`. Replace every
+`<...>` and `TODO`. The network name is the `.hocon` file name and must be the same
+everywhere. Use the protocol name in `runtime/README.md` for `<protocol_name>`. Then build:
 
 ```shell
 node SKILL_DIR/scripts/build_network.mjs <out>/<network>.hocon --manifest <out>/agent-manifest.json
@@ -86,10 +87,12 @@ node SKILL_DIR/scripts/build_network.mjs <out>/<network>.hocon --manifest <out>/
 This writes `<out>/<network>.network.json` with the runtime's own parser, runs the
 runtime's validator, and checks for leftover `<...>` and `TODO` markers, demo mode, AAOSA,
 agents nothing can call, oversized instructions, unsupported tools, unused or unlisted
-`website_*` tools, and manifest mismatches. It also prints the tools the runtime adds to
+`website_*` tools, and manifest mismatches. It also writes the discovery files, which
+copy parts of the manifest: `agent-mcp.json`, `.well-known/<protocol_name>.json` and
+`.well-known/<protocol_name>-agent.json`. It prints the tools the runtime adds to
 every agent, which the `tools` lists do not show. Fix every error.
-Fix the warnings too, or tell the user why one stays. Never edit the `.network.json` by
-hand: change the `.hocon` and rebuild.
+Fix the warnings too, or tell the user why one stays. Never edit generated files by
+hand: change the `.hocon` or the manifest and rebuild.
 
 ### 6. Mount the assistant
 
@@ -122,6 +125,9 @@ Never ask the user to paste a key into the chat.
 Tell the user:
 
 - where the output is and how to run it;
+- the network URL others use to reach it once it is hosted (the folder that holds
+  `agent-manifest.json`, then the network name), and where it can be listed (see
+  "How others find the site" in `references/bundle_and_hosting.md`);
 - the network (agents and their tools) and the actions (name, effect, wrapped function);
 - what the assistant can answer and do, and what it declines;
 - the exact test commands and their results;
@@ -138,7 +144,7 @@ Tell the user:
 - When unsure whether an action can be undone, make it `irreversible`.
 - Keep the site's business rules in the site's own functions. The actions module only
   wraps them.
-- Do not edit `runtime/` or `<network>.network.json` by hand.
+- Do not edit `runtime/`, `<network>.network.json` or the discovery files by hand.
 - Do not put keys, tokens or personal data in any published file.
 - Keep the original page usable without the assistant.
 
@@ -148,7 +154,7 @@ Tell the user:
 | --- | --- |
 | `references/network_design.md` | Inventory, agent count, delegation, instructions, worked example |
 | `references/site_actions.md` | Action registry, effects, receipts, what to test |
-| `references/bundle_and_hosting.md` | Output layout, manifest, mounting, providers, hosting |
+| `references/bundle_and_hosting.md` | Output layout, manifest, mounting, providers, hosting, discovery |
 | `references/live_url_mode.md` | Companion assistant for a public URL without source |
 | `runtime/` | Browser runtime; copy into each site unchanged (see `runtime/README.md`) |
 | `scripts/build_network.mjs` | HOCON → `.network.json`, with validation and checks |
