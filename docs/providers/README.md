@@ -42,7 +42,7 @@ Things to know for every provider:
 
 - This is nsdeploy's default `--upstream`, so it can be left out when you build the bundle.
 - OpenAI allows browser calls, so static bundles work. The
-  [Quickstart](../../README.md#manually-generate-a-website-bundle) uses it.
+  [Quickstart](../quickstart.md#manually-generate-a-website-bundle) uses it.
 - Model IDs look like `gpt-4.1-mini`. The model check uses OpenAI's model list.
 - Some newer OpenAI models limit tool calls on Chat Completions. Check OpenAI's docs
   before you pick a model.
@@ -122,7 +122,7 @@ is needed. It's a quick way to try a site locally.
    ollama pull gemma4:e4b
    ```
 1. Serve the site from `127.0.0.1` or `localhost`, as in the
-   [Quickstart](../../README.md#manually-generate-a-website-bundle).
+   [Quickstart](../quickstart.md#manually-generate-a-website-bundle).
 1. In the panel, set:
    - API key: any text, such as `ollama`. Ollama ignores it, but the site won't send a
      request with an empty key.
