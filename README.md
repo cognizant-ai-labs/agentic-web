@@ -197,7 +197,7 @@ An open agentic website can use Otari as its LLM router:
   `cors_allow_origins`. It can also run local models through Ollama, with no provider key.
 
 See [Using Otari](docs/providers/otari.md) for the steps, and
-[LLM providers](docs/providers/README.md) for other providers.
+[LLM providers](docs/providers/providers.md) for other providers.
 
 
 ## Testing
