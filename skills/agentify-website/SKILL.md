@@ -5,8 +5,9 @@ description: Turn an existing website into an open agentic website. Inventory th
 
 # Agentify a website
 
-This skill turns a website into an open agentic website, as defined in the agentic-web
-repository's `docs/worldwide_agentic_web_mvp_spec.md`. The result is a copy of the site
+This skill turns a website into an open agentic website, as defined in the
+[Worldwide Agentic Web MVP spec](https://github.com/cognizant-ai-labs/agentic-web/blob/main/docs/worldwide_agentic_web_mvp_spec.md).
+The result is a copy of the site
 with an assistant embedded in the page. The assistant runs in the visitor's browser, uses
 the visitor's own LLM key, answers from the site's real data, and calls the site's own
 functions to act.
@@ -15,16 +16,13 @@ functions to act.
 
 - **The site.** A local folder with its HTML, CSS and JavaScript (source mode), or a
   public URL (live URL mode, see `references/live_url_mode.md`).
-- **The agentic-web repository**, for the browser runtime in
-  `examples/pizza_restaurant_agentified/runtime/`. If it is not present, clone
-  https://github.com/cognizant-ai-labs/agentic-web into a scratch folder.
 - **Node.js 22 or newer**, for the build script and the tests.
 
-Do not use nsdeploy. It is not publicly installable, and its runtime lacks the
-`website_*` tool bridge this skill relies on.
+The browser runtime is in this skill's `runtime/` folder. It is nsdeploy's runtime with
+edits that let agents call the site's functions, which nsdeploy's own runtime cannot do
+yet. Do not install or run nsdeploy, and do not replace this copy.
 
-In the commands below, `SKILL_DIR` is the folder that contains this file and `RUNTIME` is
-the runtime folder above.
+In the commands below, `SKILL_DIR` is the folder that contains this file.
 
 ## Workflow
 
@@ -57,7 +55,7 @@ Follow `references/network_design.md`. The defaults are:
 
 ```shell
 cp -R <site> <out>
-cp -R RUNTIME <out>/runtime
+cp -R SKILL_DIR/runtime <out>/runtime
 ```
 
 Pick `<out>` with the user. The default is a sibling folder named `<site>_agentified`.
@@ -153,6 +151,7 @@ Tell the user:
 | `references/site_actions.md` | Action registry, effects, receipts, what to test |
 | `references/bundle_and_hosting.md` | Output layout, manifest, mounting, providers, hosting |
 | `references/live_url_mode.md` | Companion assistant for a public URL without source |
+| `runtime/` | Browser runtime; copy into each site unchanged (see `runtime/README.md`) |
 | `scripts/build_network.mjs` | HOCON → `.network.json`, with validation and checks |
 | `templates/network.hocon` | Network skeleton with shared grounding and CRUSE rules |
 | `templates/agent-manifest.json`, `links.json`, `agent-mcp.json` | Public bundle files |

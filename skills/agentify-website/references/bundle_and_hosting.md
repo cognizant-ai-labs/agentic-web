@@ -16,7 +16,7 @@ The agentified site is a copy of the original site with these additions:
   agent-manifest.json         templates/agent-manifest.json
   links.json                  templates/links.json
   agent-mcp.json              templates/agent-mcp.json
-  runtime/                    copied unchanged from examples/pizza_restaurant_agentified/runtime/
+  runtime/                    copied unchanged from the skill's runtime/
   tests/                      templates/tests/, filled in for this site
 ```
 
@@ -25,15 +25,13 @@ files (spec section 3.3). The runtime does not read them.
 
 ## The runtime
 
-Copy `examples/pizza_restaurant_agentified/runtime/` from the agentic-web repository
-(https://github.com/cognizant-ai-labs/agentic-web) without changes. It is the nsdeploy
-browser runtime plus three patches: `runner.js` (the `website_*` and `render_cruse` tools),
-`engine.js` (passes the confirmation callback to the runner) and `cruse.js` (keeps widgets
-when an agent answers in plain text). Do not edit runtime files for one site. If a site
-needs a runtime change, report it instead.
+Copy the skill's `runtime/` folder without changes. It is the nsdeploy browser runtime
+plus three edits, listed in `runtime/README.md`: `runner.js` (the `website_*` and
+`render_cruse` tools), `engine.js` (passes the confirmation dialog to the runner) and
+`cruse.js` (forms and tables in the chat). Do not edit runtime files for one site. If a
+site needs a runtime change, report it instead.
 
-nsdeploy itself is not needed. Its PyPI package and GitHub repository are not public, and
-running it would overwrite the patched runtime.
+Do not install or run nsdeploy. Its own runtime cannot offer `website_*` tools yet.
 
 ## The manifest
 
@@ -85,8 +83,8 @@ model and router base URL. Then select **Apply, save & reload**.
 ## Providers and other things to warn about
 
 - The browser calls the LLM router directly, so the router must allow CORS. OpenAI,
-  OpenRouter and LiteLLM work. Anthropic's API and hosted Otari do not. See
-  `docs/providers/README.md` in the agentic-web repository.
+  OpenRouter and LiteLLM work. Anthropic's API and hosted Otari do not. See the
+  [LLM provider notes](https://github.com/cognizant-ai-labs/agentic-web/blob/main/docs/providers/README.md).
 - Pick a model that reliably makes tool calls. Without tool calls the agent cannot read
   the page or act on it.
 - If the router publishes `/models` and the model is not listed, the chat refuses it
@@ -102,12 +100,35 @@ model and router base URL. Then select **Apply, save & reload**.
 Any static host works. For other sites to load this network, serve these files with
 `Access-Control-Allow-Origin: *`: `agent-manifest.json`, `<network>.network.json`,
 `links.json` and `agent-mcp.json`. Do not add that header to business endpoints. Serve
-`runtime/sandbox-worker.js` with:
+`runtime/sandbox-worker.js` with the `Content-Security-Policy` below. If the site is under
+a subpath, add it to each path.
+
+On Netlify and compatible hosts, put this in a `_headers` file at the site root:
 
 ```text
-Content-Security-Policy: default-src 'none'; script-src blob:; connect-src 'none'; worker-src 'none'
+/agent-manifest.json
+  Access-Control-Allow-Origin: *
+/<network>.network.json
+  Access-Control-Allow-Origin: *
+/links.json
+  Access-Control-Allow-Origin: *
+/agent-mcp.json
+  Access-Control-Allow-Origin: *
+/runtime/sandbox-worker.js
+  Content-Security-Policy: default-src 'none'; script-src blob:; connect-src 'none'; worker-src 'none'
 ```
 
-`examples/sites/pizza_restaurant_website_assistant_static/` has `_headers` (Netlify and
-compatible hosts) and `.htaccess` (Apache) files to copy and adjust. Use HTTPS in
-production: the visitor's key is stored in the browser for this origin.
+On Apache, put this in `.htaccess`:
+
+```apache
+<IfModule mod_headers.c>
+  <FilesMatch "^(agent-manifest\.json|<network>\.network\.json|links\.json|agent-mcp\.json)$">
+    Header always set Access-Control-Allow-Origin "*"
+  </FilesMatch>
+  <Files "sandbox-worker.js">
+    Header always set Content-Security-Policy "default-src 'none'; script-src blob:; connect-src 'none'; worker-src 'none'"
+  </Files>
+</IfModule>
+```
+
+Use HTTPS in production: the visitor's key is stored in the browser for this origin.

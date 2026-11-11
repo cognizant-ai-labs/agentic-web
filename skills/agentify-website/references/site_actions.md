@@ -3,7 +3,7 @@
 Site actions connect the agent to what the page can do. The site owns them: the model
 can only call an action that the site registered, with arguments that pass its schema.
 
-This skill uses the patched runtime from `examples/pizza_restaurant_agentified/runtime/`.
+This skill uses the edited runtime in its own `runtime/` folder.
 Its `runner.js` turns each action listed in `agent-manifest.json` → `actions.agentTools`
 into a model tool named `website_<name>`. Stock nsdeploy cannot do this; it only offers
 actions as buttons or forms that the visitor clicks.
@@ -121,4 +121,5 @@ Copy `templates/tests/` into the output site and fill in the TODOs. At minimum, 
 
 Run them with `node --test "<out>/tests/*.test.mjs"`. Node 22 does not accept a bare folder.
 
-`examples/pizza_restaurant_agentified/tests/restaurant.test.mjs` is a complete example.
+In the agentic-web repository, `examples/pizza_restaurant_agentified/tests/restaurant.test.mjs`
+is a complete example.
