@@ -22,7 +22,7 @@ and agents can work across platforms regardless of who built them.
 
 An open agentic website is a public website that contains:
 - a publicly accessible `.json` file that describes an agent network and its capabilities
-- a `runtime.js` file that can run the agent network in the browser
+- a `runtime` that can run the agent network in the browser
 - an interface that allows users to interact with the agent network
 - an interface that allows users to configure the LLM and keys to use
   
@@ -47,9 +47,10 @@ The minimum viable specification for a worldwide agentic web is described in [do
 
 ## Agentic Websites
 
-See [Agentic Websites](docs/agentic_websites.md) for examples and starting points that follow the Open Agentic Web principles.
-Connect your agents to other [Agentic Websites](docs/agentic_websites.md) and grow the list!
-Or use them as examples and starting points that follow the Open Agentic Web principles.
+See the list of contributed [Agentic Websites](docs/agentic_websites.md):
+- for examples and starting points that follow the Open Agentic Web principles
+- to find other agents to connect to and grow the capabilities of your agent networks
+- to contribute your own agentic websites and let people discover them. Pull requests welcome!
 
 ## Examples
 
