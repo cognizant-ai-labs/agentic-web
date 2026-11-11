@@ -2,6 +2,9 @@
 
 Create, own and connect agents on today's web. [The Open Agentic Web](https://worldwideagenticweb.org).
 
+> [!IMPORTANT]
+> This repository is actively evolving and its content changes frequently.
+> Please check back often, and pull the latest version before you use anything here.
 
 ## Why
 
