@@ -1,4 +1,5 @@
 // ui.js — the themeable chat + execution-trace inspector.
+// Changed by agentic-web. See README.md in this folder for what changed.
 //
 // Renders three surfaces from the trace bus: a chat pane, a live network/origin
 // graph, and a chronological execution log. Businesses restyle via CSS variables
@@ -12,8 +13,10 @@ import {
   getSelectedByokProfile,
   guessByokProfileName,
   loadByokStore,
+  loadTabByokSetup,
   portableByokRouter,
   resolveByokRouter,
+  saveTabByokSetup,
   selectByokProfile,
   upsertByokProfile,
 } from "./byok.js";
@@ -96,9 +99,10 @@ const BASE_CSS = PRESENTATION_CSS + `
 .ns-w-desc{font-size:13px;color:var(--ns-muted,#666)}
 .ns-w-form{display:flex;flex-direction:column;gap:10px}
 .ns-w-row{display:flex;flex-direction:column;gap:3px}
+fieldset.ns-w-row{min-width:0;margin:0;padding:0;border:0}
 .ns-w-label{font-size:13px;font-weight:600}
 .ns-w-fdesc{font-size:11px;color:var(--ns-muted,#999)}
-.ns-w-row input[type=text],.ns-w-row input[type=number],.ns-w-row input[type=date],.ns-w-row select,.ns-w-row textarea{width:100%;max-width:100%;padding:7px 9px;border:1px solid var(--ns-border,#ccc);border-radius:8px;font-size:14px;font-family:inherit}
+.ns-w-row input[type=text],.ns-w-row input[type=number],.ns-w-row input[type=date],.ns-w-row input[type=time],.ns-w-row select,.ns-w-row textarea{width:100%;max-width:100%;padding:7px 9px;border:1px solid var(--ns-border,#ccc);border-radius:8px;font-size:14px;font-family:inherit}
 .ns-w-radio,.ns-w-multi{display:flex;flex-wrap:wrap;gap:10px;font-size:13px}
 .ns-w-radio label,.ns-w-multi label,.ns-w-toggle{display:flex;align-items:center;gap:4px}
 .ns-w-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
@@ -842,10 +846,9 @@ export function mountApp(root, { engine, trace, manifest }) {
     modal.hidden = false;
   }
 
-  // BYOK / router settings. The active key is never written to the URL. Saved
-  // profiles make router/model/key reusable across agent networks; explicit URL
-  // router/model params still win so links remain shareable.
-  const params = new URLSearchParams(location.search);
+  // BYOK / router settings. Router, model and key are never read from or written
+  // to the URL. Apply keeps them for this tab in session storage, and saved
+  // profiles make them reusable across agent networks.
   let profileStore = loadByokStore();
   let selectedProfile = getSelectedByokProfile(profileStore);
   const profileEl = root.querySelector("#ns-profile");
@@ -869,9 +872,9 @@ export function mountApp(root, { engine, trace, manifest }) {
 
   routerEl.value = engine.routerOverride || engine.top?.llm?.baseUrl || byokRouter || mockUrl;
   modelEl.value = engine.modelOverride || "";
-  let storedKey = "";
-  try { storedKey = sessionStorage.getItem("nsweb-byok-key") || ""; } catch {}
-  keyEl.value = storedKey || selectedProfile?.key || "";
+  // The key shown comes from the same source as the router and model the engine
+  // uses, so it never shows another setup's key next to this tab's router.
+  keyEl.value = loadTabByokSetup(selectedProfile).key;
   profileNameEl.value = selectedProfile?.name || "";
   langchainEl.checked = !!engine.agentRunner;
 
@@ -1062,25 +1065,17 @@ export function mountApp(root, { engine, trace, manifest }) {
   root.querySelector("#ns-apply").addEventListener("click", async () => {
     const p = new URLSearchParams(location.search);
     p.delete("key"); // the key must never appear in the URL
-    let router = routerEl.value.trim();
-    const key = keyEl.value.trim();
     const model = normalizeModelName(modelEl.value);
     modelEl.value = model;
-    // Safety net: a real key must never be sent to the mock router.
-    if ((key || model) && byokRouter && isMockRouter(router)) router = byokRouter;
     if (!await validateConfiguredModel(false)) return;
     const saved = saveCurrentProfile();
-    // The key is kept in browser storage, never the query string.
-    try {
-      if (key) sessionStorage.setItem("nsweb-byok-key", key);
-      else sessionStorage.removeItem("nsweb-byok-key");
-    } catch {}
-    if (router) p.set("router", router); else p.delete("router");
-    if (model) p.set("model", model); else p.delete("model");
+    // Key, router and model stay with this tab in session storage, never in the
+    // query string. Boot reads them after the reload, so a setup that another tab
+    // or port selects later cannot pair this tab's key with a different router.
+    saveTabByokSetup(saved);
     if (langchainEl.checked) p.set("runner", "langchain"); else p.delete("runner");
     const qs = p.toString();
-    // Rewrite the (key-free) query string, then reload so the change applies even
-    // when only the key changed (router/model unchanged).
+    // Rewrite the (key-free) query string, then reload so the applied setup takes effect.
     try { history.replaceState(null, "", location.pathname + (qs ? "?" + qs : "") + location.hash); } catch {}
     if (saved) setProfileHint(`Saved setup "${saved.name}". Reloading...`);
     location.reload();
@@ -1166,17 +1161,20 @@ function lockWidget(card, locked = true) {
 // numeric bounds are coerced to real numbers. This closes the widget XSS surface.
 function renderField(fid, key, f, req) {
   const ui = f["x-ui"] || {};
-  const label = `<label class="ns-w-label">${escapeHtml(f.title || key)}${req ? " *" : ""}</label>`;
+  const radio = Array.isArray(f.enum) && f.enum.length && ui.widget === "radio";
+  const labelTag = radio ? "legend" : "label";
+  const label = `<${labelTag} class="ns-w-label">${escapeHtml(f.title || key)}${req ? " *" : ""}</${labelTag}>`;
   const desc = f.description ? `<div class="ns-w-fdesc">${escapeHtml(f.description)}</div>` : "";
   const enumVals = Array.isArray(f.enum) ? f.enum.map((v) => escapeHtml(v)) : [];
+  const enumLabels = enumVals.map((value, i) => Array.isArray(ui.enumLabels) && typeof ui.enumLabels[i] === "string" ? escapeHtml(ui.enumLabels[i]) : value);
   const itemVals = Array.isArray(f.items?.enum) ? f.items.enum.map((v) => escapeHtml(v)) : [];
   const min = Number(f.minimum);
   const max = Number(f.maximum);
   let ctl;
   if (enumVals.length && ui.widget === "radio") {
-    ctl = `<div class="ns-w-radio">` + enumVals.map((v) => `<label><input type="radio" name="${fid}" value="${v}"> ${v}</label>`).join("") + `</div>`;
+    ctl = `<div class="ns-w-radio">` + enumVals.map((v, i) => `<label><input type="radio" name="${fid}" value="${v}"><span>${enumLabels[i]}</span></label>`).join("") + `</div>`;
   } else if (enumVals.length) {
-    ctl = `<select data-field="${fid}"><option value="">—</option>` + enumVals.map((v) => `<option value="${v}">${v}</option>`).join("") + `</select>`;
+    ctl = `<select data-field="${fid}"><option value="">—</option>` + enumVals.map((v, i) => `<option value="${v}">${enumLabels[i]}</option>`).join("") + `</select>`;
   } else if (f.type === "boolean") {
     ctl = `<label class="ns-w-toggle"><input type="checkbox" data-field="${fid}"> Yes</label>`;
   } else if (f.type === "array" && itemVals.length) {
@@ -1185,12 +1183,15 @@ function renderField(fid, key, f, req) {
     ctl = `<input type="number" data-field="${fid}"${Number.isFinite(min) ? ` min="${min}"` : ""}${Number.isFinite(max) ? ` max="${max}"` : ""}>`;
   } else if (f.format === "date") {
     ctl = `<input type="date" data-field="${fid}">`;
+  } else if (f.format === "time") {
+    ctl = `<input type="time" data-field="${fid}" step="60">`;
   } else if (ui.widget === "textarea") {
     ctl = `<textarea data-field="${fid}" rows="3"></textarea>`;
   } else {
     ctl = `<input type="text" data-field="${fid}">`;
   }
-  return `<div class="ns-w-row">${label}${desc}${ctl}</div>`;
+  const rowTag = radio ? "fieldset" : "div";
+  return `<${rowTag} class="ns-w-row">${label}${desc}${ctl}</${rowTag}>`;
 }
 
 // `entries` is the same Object.entries(props) array used to render, so index i
@@ -1289,7 +1290,12 @@ function renderWidget(container, spec, onSubmit, turnId) {
       if (!control) return;
       control.id = `${turnId || "welcome"}-${spec.id || "welcome"}-f${i}`;
       const label = control.closest(".ns-w-row")?.querySelector(".ns-w-label");
-      if (label) label.htmlFor = control.id;
+      if (label?.tagName === "LABEL") label.htmlFor = control.id;
+      const description = control.closest(".ns-w-row")?.querySelector(".ns-w-fdesc");
+      if (description) {
+        description.id = `${control.id}-description`;
+        control.setAttribute("aria-describedby", description.id);
+      }
       if (required.includes(key) && field.type !== "boolean" && field.type !== "array") control.required = true;
       if (field.type === "number") control.step = "any";
       if (field.type === "integer") control.step = "1";

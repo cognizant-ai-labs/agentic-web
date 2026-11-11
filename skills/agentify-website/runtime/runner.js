@@ -1,4 +1,5 @@
 // runner.js — the AgentRunner intrinsic.
+// Changed by agentic-web. See README.md in this folder for what changed.
 //
 // Two interchangeable implementations of one agent's LLM tool-calling loop:
 //   * runAgentManual   — a dependency-free reference loop (default).

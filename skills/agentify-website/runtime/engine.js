@@ -1,3 +1,4 @@
+// Changed by agentic-web. See README.md in this folder for what changed.
 // engine.js — top-level orchestration: load a published network from an origin,
 // compile it (HOCON -> filter chain -> validate -> AgentNetwork), and run it. Owns
 // the intrinsics (LLM client, sandbox, trace) and implements resolveRemote, the

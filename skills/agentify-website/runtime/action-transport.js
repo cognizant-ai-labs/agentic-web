@@ -1,3 +1,4 @@
+// Changed by agentic-web. See README.md in this folder for what changed.
 import { ActionRegistry, cloneData, validateData } from "./actions.js";
 import { registerFormActions, watchHostForms } from "./form-actions.js";
 import { loadDiscoveredActions } from "./discovered-actions.js";
@@ -38,11 +39,14 @@ export function reviewActions(items, title = "Review actions") {
     const dialog = document.createElement("dialog");
     dialog.style.cssText = "max-width:640px;width:85%;max-height:85vh;overflow:auto;border:1px solid #888;border-radius:12px;padding:24px;font:16px system-ui";
     const heading = document.createElement("h2"); heading.textContent = title;
+    // Start at the top of the dialog, on an element that Enter cannot activate.
+    heading.tabIndex = -1; heading.autofocus = true;
     const details = document.createElement("pre"); details.style.cssText = "white-space:pre-wrap;overflow-wrap:anywhere";
     details.textContent = items.map(i => `${i.action} — ${i.origin} (${i.effect})\n${i.description || ""}\n${JSON.stringify(i.arguments, null, 2)}`).join("\n\n");
     const yes = document.createElement("button"); yes.textContent = "Confirm actions";
     const no = document.createElement("button"); no.textContent = "Cancel";
-    const finish = value => { dialog.remove(); resolve(value); };
+    // close() returns focus to where the visitor was, such as the chat input.
+    const finish = value => { dialog.close(); dialog.remove(); resolve(value); };
     yes.onclick = () => finish(true); no.onclick = () => finish(false);
     dialog.addEventListener("cancel", event => { event.preventDefault(); finish(false); });
     dialog.append(heading, details, yes, no); document.body.append(dialog); dialog.showModal();
@@ -56,7 +60,7 @@ function openActionWindow(url, signal) {
     const text = document.createElement("p"); text.textContent = `Continue at ${new URL(url).origin} to authorize this action. Sign in there if needed.`;
     const open = document.createElement("button"); open.textContent = "Open action site";
     const cancel = document.createElement("button"); cancel.textContent = "Cancel";
-    const cleanup = () => { dialog.remove(); signal?.removeEventListener("abort", stop); };
+    const cleanup = () => { dialog.close(); dialog.remove(); signal?.removeEventListener("abort", stop); };
     const stop = () => { cleanup(); reject(new Error("Action window cancelled; action not started.")); };
     open.onclick = () => {
       const popup = window.open(url, "_blank", "popup,width=700,height=650");

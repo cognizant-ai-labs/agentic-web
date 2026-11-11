@@ -1,4 +1,5 @@
 // index.js — public entry point for the neuro-san-web runtime.
+// Changed by agentic-web. See README.md in this folder for what changed.
 //
 // A business's index.html imports `boot` and points it at its origin. boot loads
 // the origin's published network, compiles it, mounts the themeable UI, and is
@@ -14,7 +15,7 @@ export { ActionRegistry } from "./actions.js";
 import { Engine } from "./engine.js";
 import { TraceBus } from "./trace.js";
 import { mountApp } from "./ui.js";
-import { getSelectedByokProfile, resolveByokRouter } from "./byok.js";
+import { getSelectedByokProfile, loadTabByokSetup } from "./byok.js";
 
 export async function boot(rootSelector = "#app", opts = {}) {
   const root = typeof rootSelector === "string" ? document.querySelector(rootSelector) : rootSelector;
@@ -22,33 +23,35 @@ export async function boot(rootSelector = "#app", opts = {}) {
   root.setAttribute("data-nsdeploy-ui", "");
   const trace = new TraceBus();
   const params = new URLSearchParams(location.search);
-  // BYOK key handling: a real API key must NEVER live in the URL/query string -
-  // that leaks it to the static origin (initial GET), browser history, server
-  // logs, and shared links. If a key ever arrives via the URL (legacy/shared
-  // link), migrate it into sessionStorage and strip it from the address bar
-  // immediately. Saved BYOK profiles, when present, provide cross-network
-  // defaults without putting the key in the URL.
+  // Key, router and model come from the hosting page (opts), the setup applied in
+  // this tab or the saved BYOK profile, never from the URL, so a link cannot choose
+  // where the key is sent or which model it pays for. A key in the URL is removed
+  // from the address bar so it does not stay in history. Router and model stay,
+  // because a host page may use those names for its own parameters.
+  const ignoredParams = [];
+  // Note each setting found in the URL. Its value is never read or logged.
+  for (const name of ["key", "router", "model"]) {
+    if (params.has(name)) ignoredParams.push(name);
+  }
   if (params.has("key")) {
-    const urlKey = params.get("key");
-    if (urlKey && urlKey !== "demo") {
-      try { sessionStorage.setItem("nsweb-byok-key", urlKey); } catch {}
-    }
     params.delete("key");
     const qs = params.toString();
     try { history.replaceState(null, "", location.pathname + (qs ? "?" + qs : "") + location.hash); } catch {}
   }
-  let storedKey = "";
-  try { storedKey = sessionStorage.getItem("nsweb-byok-key") || ""; } catch {}
+  if (ignoredParams.length) {
+    const names = ignoredParams.join(", ");
+    console.warn(`Inference settings in the page URL are ignored (${names}). Set them in BYOK / router settings.`);
+  }
   const savedProfile = getSelectedByokProfile();
-  const savedRouter = resolveByokRouter(savedProfile?.router || "");
+  const tabSetup = loadTabByokSetup(savedProfile);
   const siteBase = (opts.originUrl || location.origin).replace(/\/$/, "");
   const engine = new Engine({
     originUrl: siteBase,
     trace,
     sandboxWorkerUrl: opts.sandboxWorkerUrl || "/runtime/sandbox-worker.js",
-    byokKey: opts.byokKey || storedKey || savedProfile?.key || "",
-    routerOverride: opts.router || params.get("router") || savedRouter || "",
-    modelOverride: opts.model || params.get("model") || savedProfile?.model || "",
+    byokKey: opts.byokKey || tabSetup.key,
+    routerOverride: opts.router || tabSetup.router,
+    modelOverride: opts.model || tabSetup.model,
   });
   // Select the agent loop: ?runner=langchain drives the LLM via LangChain.js
   // (neuro-san-web owns the loop). 'langgraph' kept as an alias for older links.
@@ -65,11 +68,17 @@ export async function boot(rootSelector = "#app", opts = {}) {
     status.style.cssText = "flex:none;padding:8px 12px;font-size:12px;max-height:140px;overflow:auto";
     const summary = document.createElement("summary");
     const detail = document.createElement("p");
+    // website_* tools (runner.js) ask only before irreversible actions. Buttons and forms
+    // the visitor submits are always reviewed first.
+    const directTools = !!manifest?.actions?.agentTools?.length;
+    const reviewed = directTools
+      ? "You confirm actions that cannot be undone before they run. Other actions run right away."
+      : "Actions run after you review and confirm them. Server responses appear as receipts.";
     const update = () => {
       const count = engine.actions.catalog({ base: engine.top.base, network: engine.top.network.name }).length;
       summary.textContent = count ? `${count} website actions connected` : "No website actions connected";
       detail.textContent = engine.actions.discoveryIssues.map(i => `${i.page}: ${i.reason}`).join(" ") || (count
-        ? "Actions run after you review and confirm them. Server responses appear as receipts."
+        ? reviewed
         : "This agent can collect information, but no website operations are connected.");
     };
     engine.actions.onChange = update;
