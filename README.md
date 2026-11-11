@@ -277,6 +277,10 @@ through the same steps for any website, given its source folder or a public URL.
 your agent to read and follow `skills/agentify-website/SKILL.md`. It needs Node.js 22
 or newer.
 
+[`examples/guesthouse/`](examples/guesthouse/) is a plain guesthouse booking site, and
+[`examples/guesthouse_agentified/`](examples/guesthouse_agentified/) is the version an
+agent made by following the skill.
+
 
 ## Infrastructure
 
