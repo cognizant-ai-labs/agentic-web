@@ -204,11 +204,13 @@ node SKILL_DIR/scripts/serve_site.mjs <out> --port 8080
 It sends the headers that "Static hosting" below lists. `python3 -m http.server` works
 for one site but sends no CORS header, so other sites cannot call it.
 
-Open http://127.0.0.1:8080/, expand **BYOK / router settings**, and enter an API key,
-model and router base URL. Then select **Apply, save & reload**. Fill in the router
-before the model, or type a setup name: the runtime names the setup from both fields when
-the model is typed (`runtime/ui.js`), so a setup for another router can be named
-"OpenAI". If you served another
+Open http://127.0.0.1:8080/, expand **⚙ AI model settings**, and paste an API key for
+the site's default provider. For another provider, select it in the panel, which fills
+in its provider URL and model, or enter both under **Advanced settings (optional)**. Then
+select **Save and start**. There, fill in the provider URL before the model, or type a
+setup name: the runtime names the setup from both fields when the model is typed
+(`runtime/ui.js`), so a setup for another provider can be named "OpenAI". If you served
+another
 folder on the same port before, the browser may still show its cached files, with no
 assistant. Use another port, or reload while holding Shift.
 
@@ -217,8 +219,8 @@ into a cookie for 180 days, so the settings follow you across local ports
 (`runtime/byok.js`). Any page served from that host, on any port, can read it. A partner
 site on the same host name gets that cookie, key included, with its bridge requests.
 Serve linked sites on different host names, such as `127.0.0.1` and `localhost`. For a
-local check, use a key with a low spending limit. Afterwards, delete the saved setup in
-the settings and close the tab. A hosted site on any other domain keeps the key in that
+local check, use a key with a low spending limit. Afterwards, select **Delete setup**
+under **Advanced settings (optional)** and close the tab. A hosted site on any other domain keeps the key in that
 site's own browser storage only.
 
 ## The README

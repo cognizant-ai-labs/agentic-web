@@ -34,10 +34,11 @@ don't run JavaScript modules from `file://` pages.
    special requests, then select **Confirm booking** to get a confirmation code.
 5. Under **Manage my booking**, enter the code and your last name to see the
    booking and what cancelling it today would cost, then cancel it.
-6. Under **Ask Tidewhistle Guesthouse**, open **BYOK / router settings**, enter
-   your own [Otari](https://otari.ai) API key and select **Apply, save & reload**. The
+6. Under **Ask Tidewhistle Guesthouse**, open **⚙ AI model settings**, paste
+   your own [Otari](https://otari.ai) API key and select **Save and start**. The
    site uses hosted Otari (`https://api.otari.ai/api/v1`) with
-   `alibaba/qwen-3.5-35b-a3b` by default. Then ask, for example,
+   `alibaba/qwen-3.5-35b-a3b` by default. For another provider, select it in the
+   panel, which fills in its provider URL and model. Then ask, for example,
    "Is any room free for two guests for three nights starting three weeks from
    today?" The browser asks you to confirm before the assistant books or
    cancels anything. On `127.0.0.1` the runtime also keeps the key in a cookie

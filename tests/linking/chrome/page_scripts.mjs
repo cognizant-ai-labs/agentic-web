@@ -18,7 +18,7 @@ export class PageScripts {
   }
 
   /**
-   * The page runs with this key, after "Apply, save & reload".
+   * The page runs with this key, after "Save and start".
    *
    * :param key: The API key.
    * :return: A script whose value is true once the reloaded page has the key.
@@ -46,7 +46,7 @@ export class PageScripts {
   }
 
   /**
-   * Fill in the BYOK settings as a visitor would, then press "Apply, save & reload".
+   * Fill in the AI model settings as a visitor would, then press "Save and start".
    *
    * :param key: The API key.
    * :param router: The router base URL.

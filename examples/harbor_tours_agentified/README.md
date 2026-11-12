@@ -57,15 +57,16 @@ reads, to the LLM provider the visitor picks.
 
 ## The assistant
 
-Open **BYOK / router settings** under the chat, enter your own
-[Otari](https://otari.ai) API key and select **Apply, save & reload**. The site
-uses hosted Otari (`https://api.otari.ai/api/v1`) with
-`alibaba/qwen-3.5-35b-a3b` by default. For another provider, fill in its router
-base URL and a model it offers; the router must allow browser CORS. On
-`localhost` and `127.0.0.1`, the runtime also keeps saved setups, keys included,
-in a cookie that any local site can read, so use a key with a low spending
-limit. When you are done, select **Delete setup**, then close the tab: the tab
-keeps using the key until it is closed.
+Open **⚙ AI model settings** under the chat, paste your own
+[Otari](https://otari.ai) API key and select **Save and start**. The site uses
+hosted Otari (`https://api.otari.ai/api/v1`) with `alibaba/qwen-3.5-35b-a3b` by
+default. For another provider, select it in the panel, which fills in its
+provider URL and model, or enter both under **Advanced settings (optional)**; the
+provider must allow browser CORS. On `localhost` and `127.0.0.1`, the runtime
+also keeps saved setups, keys included, in a cookie that any local site can
+read, so use a key with a low spending limit. When you are done, select
+**Delete setup** under **Advanced settings (optional)**, then close the tab: the
+tab keeps using the key until it is closed.
 
 The assistant can:
 

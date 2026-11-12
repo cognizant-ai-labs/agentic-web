@@ -168,7 +168,7 @@ and run it on this site's own network URL with no `--origin` ("Callers" in "Chec
 and the consent card without a key, use the console check in "Check without a key" in
 `references/bundle_and_hosting.md`.
 
-If the user wants a live check, ask them to enter their own key in the BYOK panel and try
+If the user wants a live check, ask them to enter their own key in **⚙ AI model settings** and try
 each sample query. If the site calls a partner, check that the consent card names it,
 that nothing reaches the partner before the visitor answers (the browser's Network panel,
 or the `--log` file of a partner served on this machine), and that declining gives an
