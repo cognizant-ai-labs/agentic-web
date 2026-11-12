@@ -57,9 +57,11 @@ reads, to the LLM provider the visitor picks.
 
 ## The assistant
 
-Open **BYOK / router settings** under the chat, fill in the router base URL,
-then the model, then your API key, and select **Apply, save & reload**. The
-router must allow browser CORS: OpenAI, OpenRouter and LiteLLM do. On
+Open **BYOK / router settings** under the chat, enter your own
+[Otari](https://otari.ai) API key and select **Apply, save & reload**. The site
+uses hosted Otari (`https://api.otari.ai/api/v1`) with
+`alibaba/qwen-3.5-35b-a3b` by default. For another provider, fill in its router
+base URL and a model it offers; the router must allow browser CORS. On
 `localhost` and `127.0.0.1`, the runtime also keeps saved setups, keys included,
 in a cookie that any local site can read, so use a key with a low spending
 limit. When you are done, select **Delete setup**, then close the tab: the tab

@@ -124,8 +124,8 @@ with fixed data, a manifest with `actions.bridge`, and the template's rules.
   `http://localhost:8082/`. It calls the guesthouse. Its model, `gpt-4.1-nano`, is not the
   guesthouse's, so a test can tell which site chose the model.
 - `partner_site`: Marrow Point Harbor Tours, network `marrow_point_harbor_tours`, served at
-  `http://localhost:8081/` while `examples/harbor_tours_agentified` does not exist. Its
-  model is `gpt-4o-mini`. It calls the guesthouse back, as the real tour site will, so L5
+  `http://localhost:8081/` when `examples/harbor_tours_agentified` is missing. Its
+  model is `gpt-4o-mini`. It calls the guesthouse back, as the real tour site does, so L5
   checks the call-back rule on a real network.
 
 They hold no copy of the runtime. The Chrome check serves a copy of each, with the skill's
