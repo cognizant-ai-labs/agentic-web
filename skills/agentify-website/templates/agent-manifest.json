@@ -64,6 +64,7 @@
   "actions": {
     "version": 1,
     "module": "./site-actions.js",
+    "bridge": "./bridge/action-bridge.html",
     "agentTools": [
       "<read_action>",
       "<write_action>",

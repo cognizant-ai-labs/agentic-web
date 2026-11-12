@@ -263,6 +263,14 @@ export class StubElement {
   }
 
   /**
+   * Record that page code removed this element, such as an old error message. A test can
+   * then check removed.
+   */
+  remove() {
+    this.removed = true;
+  }
+
+  /**
    * Accept focus calls from page code.
    */
   focus() {

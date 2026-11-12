@@ -1,0 +1,10 @@
+{
+  "networks": [
+    {
+      "name": "marrow_point_visitor_desk"
+    }
+  ],
+  "actions": {
+    "version": 1
+  }
+}

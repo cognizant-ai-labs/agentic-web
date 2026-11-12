@@ -39,6 +39,8 @@
 /* Site label rules add margins and bold text, and the inputs inside the labels inherit
    the weight. */
 #agent-app .ns-settings-body label { margin: 4px 0; font-weight: 400; }
+/* A static site always runs the runtime's own loop, so the LangChain choice does nothing. */
+#agent-app .ns-settings-body label:has(#ns-lg) { display: none; }
 /* Chat forms label radio groups with a legend, so site legend fonts would reach them. */
 #agent-app .ns-w-label { font-family: inherit; }
 /* Site label rules add margins to chat form fields and make their options bold. */
@@ -58,11 +60,25 @@
 #agent-app .ns-devtoggle:not(.on):hover,
 #agent-app .ns-modal-close:hover { background: transparent; }
 #agent-app .ns-w-choice:disabled:hover { background: #fafbfc; }
+/* The runtime's message rule hides the partner consent card's own background, and its
+   Decline label then has too little contrast. */
+#agent-app .ns-consent { background: #fffbeb; }
+/* While a consent card waits, the status line above it already says "Contacting", though
+   nothing has been sent. Hide it until the visitor answers. */
+#agent-app .ns-msgs:has(.ns-consent-actions) > .ns-turn-status { display: none; }
+/* Long links in a reply would run out of the bubble on a phone. "anywhere" would also
+   let the consent card's buttons shrink and split their labels. */
+#agent-app .ns-msg { overflow-wrap: break-word; }
+/* On a phone the consent card is too narrow for its three buttons in one row, and
+   "Always allow" breaks onto two lines. Keep each label whole and wrap the row. */
+#agent-app .ns-consent-actions { flex-wrap: wrap; }
+#agent-app .ns-consent-actions button { white-space: nowrap; }
 
 /* site.js and the runtime add their confirmation dialogs to <body>, outside #agent-app.
-   Site h2 rules reach the heading, and the two buttons touch. */
+   Site h2 rules reach the heading, and the two buttons touch. A right margin keeps
+   wrapped buttons lined up on the left. */
 body > dialog h2 { margin: 0 0 12px; font: 700 1.25em system-ui, sans-serif; }
-body > dialog button + button { margin-left: 8px; }
+body > dialog button { margin-right: 8px; }
 /* site.js's dialog: the details in two columns, and a plain decline button, so the two
    choices do not look the same. */
 .assistant-review { max-width: 640px; width: 85%; max-height: 85vh; overflow: auto; border: 1px solid #888; border-radius: 12px; padding: 24px; font: 16px system-ui, sans-serif; }
@@ -75,4 +91,7 @@ body > dialog button + button { margin-left: 8px; }
 
 @media (max-width: 760px) {
   .assistant-panels { grid-template-columns: 1fr; }
+  /* On a phone, each detail goes under its label, so an email is not split. */
+  .assistant-review dl { grid-template-columns: 1fr; gap: 0; }
+  .assistant-review dd { margin-bottom: 8px; }
 }

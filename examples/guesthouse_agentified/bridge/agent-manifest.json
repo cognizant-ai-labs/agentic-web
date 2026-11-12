@@ -1,0 +1,10 @@
+{
+  "networks": [
+    {
+      "name": "tidewhistle_guesthouse"
+    }
+  ],
+  "actions": {
+    "version": 1
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "networks": [
+    {
+      "name": "marrow_point_harbor_tours"
+    }
+  ],
+  "actions": {
+    "version": 1
+  }
+}

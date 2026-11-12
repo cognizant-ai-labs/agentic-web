@@ -1,0 +1,38 @@
+<!doctype html>
+<!-- A test site for tests/linking: one page with the assistant, which calls the guesthouse. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex">
+    <title>Marrow Point Visitor Desk (test site)</title>
+    <!-- No favicon request, so the browser console stays empty. -->
+    <link rel="icon" href="data:,">
+    <script type="module" src="site.js"></script>
+    <style>
+      body { margin: 0 auto; max-width: 1100px; padding: 24px 16px; font: 16px/1.5 system-ui, sans-serif; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Marrow Point Visitor Desk</h1>
+      <p>A test site for the linking checks. It has no real data.</p>
+    </header>
+    <main>
+      <section id="assistant" class="assistant" aria-labelledby="assistant-heading">
+        <h2 id="assistant-heading">Ask Marrow Point Visitor Desk</h2>
+        <p>For rooms at Tidewhistle Guesthouse, the assistant asks that site's own assistant, after you agree.</p>
+        <p class="assistant-note">Your messages and this page's data go to the LLM provider you choose in the settings below. You confirm anything that cannot be undone before it happens.</p>
+        <p id="assistant-status" role="status">Connecting the assistant… If this message stays, the assistant could not load. You can still use the page directly.</p>
+        <div id="agent-app">
+          <div data-ns-slot="header"></div>
+          <div class="assistant-panels">
+            <div data-ns-slot="chat"></div>
+            <div data-ns-slot="agents"></div>
+          </div>
+          <div data-ns-slot="settings"></div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

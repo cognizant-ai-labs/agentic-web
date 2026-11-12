@@ -18,8 +18,8 @@ List what the site has before naming any agent:
 
 Each operation becomes one site action. Each piece of data is reached through a read
 action. Unsupported features go into the grounding rules so the agent says so plainly.
-External services become an MCP URL or a plain "not available here" (see "External
-capabilities" below).
+External services become an MCP URL, a partner site's network or a plain "not available
+here" (see "External capabilities" below).
 
 ## How many agents
 
@@ -80,38 +80,52 @@ front agent cannot tell from their descriptions which one to call.
 
 ## Writing instructions
 
-Shared text goes once into `commondefs.replacement_strings` and is used as
-`{grounding_rules}` or `{cruse_rules}`. The browser expands each placeholder once: a
-replacement string must not contain another `{placeholder}`.
+Shared text goes once into `commondefs.replacement_strings` and is used as a placeholder,
+such as `{grounding_rules}`. The browser expands each placeholder once: a replacement
+string must not contain another `{placeholder}`.
 
-Keep each agent's expanded instructions under about 4,000 characters (`build_network.mjs`
-warns above that). In the front agent, the template's `{grounding_rules}` and
-`{cruse_rules}` already use about 2,500 of them, so keep the site's own text, with its
-list of what the site cannot do, to about 1,400. The runtime appends about 2,000 more:
-CRUSE guidance (`runtime/cruse.js`, `agentPresentationContext`) and a note on `website_*`
-tools (`runtime/runner.js`, `runAgent`). Do not repeat that guidance; the template's
+Keep each agent's expanded instructions under about 5,000 characters (`build_network.mjs`
+warns above that). In the front agent, the template's `{grounding_rules}` without its
+TODO line, `{cruse_rules}`, `{peer_rules}` and `{partner_rules}` already use about 3,500
+of them, or about 2,850 without `{partner_rules}`. Everything else shares the rest,
+about 1,450 or 2,150: the first sentence, the list of what the site cannot do, and every
+"How to work" line. The template's own words in those lines count: about 250 in the
+irreversible action's line. The runtime appends about 2,000 more: CRUSE guidance
+(`runtime/cruse.js`, `agentPresentationContext`) and a note on `website_*` tools
+(`runtime/runner.js`, `runAgent`). Do not repeat that guidance; the template's
 `{cruse_rules}` adds the component shapes and two short rules.
 
 Each model call also sends every `website_*` tool's description and input schema, and
 `build_network.mjs` does not count them. They can be longer than the instructions: in the
-agentic-web repository's `examples/guesthouse_agentified`, the eight tools' definitions
-are about twice the size of its instructions. Keep each description to what the model
+agentic-web repository's `examples/guesthouse_agentified`, its tool definitions are about
+1.7 times the size of its instructions. Keep each description to what the model
 needs to choose and call the tool, and do not add an action whose job another action
 already does. The template's read-tool test prints what one model call sends: the system
 prompt with the runtime's notes, and all tool definitions.
 
-A good front agent's instructions have four parts:
+A good front agent's instructions have these parts, in this order:
 
-1. One sentence: who it helps, on which site, with what.
+1. One sentence: who it helps, on which site, with what. Name the kinds of things the site
+   offers in plain words, such as "bike rentals, guided rides and repairs", with no
+   prices, times or other details that change. When another agent site runs this
+   network, it learns little more than this ("Site tools" in `linking.md`).
 2. `{grounding_rules}`.
 3. "How to work": one line per tool or specialist, saying when to call it and with what.
-4. `{cruse_rules}`. Only the front agent needs these: only its presentation is shown.
+4. `{partner_rules}`, only when the agent calls partner sites.
+5. `{cruse_rules}`. Only the front agent needs these: only its presentation is shown.
+6. `{peer_rules}`.
 
 Some rules on the site decide what to pass to an operation, such as who counts as a guest
 or what goes in a notes field. Tell the agent to read them before the operation, not only
 when the visitor asks. If a separate read returns them, tell the agent to make that read
 in the same reply as its state read, which costs no extra round trip. The model writes
 every call in a reply before the first one runs, so the operation goes in a later reply.
+
+Some rules depend on what only the visitor tells the agent, such as a child's age against
+a trip's minimum age, so the site's own check cannot apply them. Return the rule with each
+result it affects, such as the trip's age limit with each departure. Say in the read's
+description what the site does not check, and add a "How to work" line that tells the
+agent to apply the rule before it offers or adds a result.
 
 Tool results last one turn: the next turn gets the visitor's messages and the agent's
 answers, not the results (`runtime/engine.js`, `runTurn`). So a version or fee read in an
@@ -129,11 +143,14 @@ listed in `actions.agentTools`.
   service in the grounding rules as something the site cannot do. Put the partner's link
   and phone number in the page facts, so the agent can point visitors there. Read the
   link's `href`, because `textContent` leaves it out.
-- **Another agent site.** This skill does not link agent networks yet. Treat the partner
-  as a normal website. Do not add a link slot, which would make the chat ask the visitor
-  for a URL.
+- **Another agent site.** If it publishes an agent network and the user wants the
+  assistant to ask it, call it as a partner (`linking.md`): its full network URL in
+  `tools`. Never add a link slot: it makes the chat ask the visitor for a URL. Otherwise
+  treat it as a normal website.
 - **An MCP server.** Use `{"url": "https://tools.example/mcp", "tools": ["search"]}` in
-  `tools`. In a static bundle the browser calls it directly, so it must allow CORS.
+  `tools`. In a static bundle the browser calls it directly, so it must allow CORS. List
+  the MCP server's origin in `allowed_peers`: with the closed policy, the runtime refuses
+  every other origin this network asks for.
 - **Python or toolbox tools** (`web_fetch`, `class`, `toolbox`) do not run in a static
   bundle. The build fails on them.
 
@@ -143,8 +160,10 @@ Put four to six in `metadata.sample_queries`, and copy them to the manifest.
 `build_network.mjs --manifest` fails when the two lists differ. Write them from the
 inventory: questions the data answers, a state change, an operation that ends in
 confirmation, and one request the site cannot do, to show the agent declining honestly.
-Never list features the site does not have. The generated pizza network in the agentic-web
-repository (`examples/pizza_restaurant_website_assistant.hocon`) asks to
+Never list features the site does not have. A query for a partner site asks only what
+the partner can answer from here, such as "Is there a good place to eat nearby?", not
+free tables or prices ("Site tools" in `linking.md`). The generated pizza network in the
+agentic-web repository (`examples/pizza_restaurant_website_assistant.hocon`) asks to
 "apply code FAMILY20" and about "order #48219", which are examples of this mistake.
 
 Make each query work on its own, as the first message in a new chat, because anyone may

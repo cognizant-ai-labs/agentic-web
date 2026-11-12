@@ -52,6 +52,8 @@ export class AssistantMount {
       AssistantMount.engine = booted.engine;
       AssistantMount.defaultReview = booted.engine.onActionConfirm;
       booted.engine.onActionConfirm = AssistantMount.review;
+      AssistantMount.defaultConsent = booted.engine.onConsent;
+      booted.engine.onConsent = AssistantMount.consent;
       // Without a key the chat cannot answer yet. This is the same test as the
       // runtime's "API key required" badge in runtime/ui.js.
       const needsKey = !booted.engine.mockLLM
@@ -83,17 +85,33 @@ export class AssistantMount {
   }
 
   /**
-   * Ask the visitor to confirm actions before they run. One action listed in DIALOGS
-   * gets this page's dialog, and anything else gets the runtime's own dialog.
+   * Ask the visitor to confirm actions before they run. One of this page's actions listed
+   * in DIALOGS gets this page's dialog. Anything else, such as a partner site's action,
+   * gets the runtime's own dialog.
    *
    * :param items: The actions waiting for confirmation, each with action, origin, effect
    *   and arguments.
    * :return: True when the visitor confirms.
-   * :raises Error: The site's reason, when its own check refuses the action.
+   * :raises Error: The site's reason, when its own check refuses the action, or when a
+   *   chat form bundles one of this page's DIALOGS actions with other actions.
    */
   static async review(items) {
     let confirmed = false;
-    if (items.length === 1 && Object.hasOwn(AssistantMount.DIALOGS, items[0].action)) {
+    const pageOrigin = new URL(document.URL).origin;
+    // This page's dialog shows one action with its details and runs the site's own check.
+    // A chat form that bundles such an action with others would skip both, so nothing
+    // runs.
+    if (items.length > 1) {
+      for (const item of items) {
+        if (item.origin === pageOrigin && Object.hasOwn(AssistantMount.DIALOGS, item.action)) {
+          throw new Error(`Nothing ran. "${AssistantMount.DIALOGS[item.action].confirm}" needs its own confirmation, so ask the assistant to do that on its own.`);
+        }
+      }
+    }
+    // A partner's action can have the same name as one of this page's. It gets the
+    // runtime's dialog, which names the partner's origin, and this page's check never runs.
+    const own = items.length === 1 && items[0].origin === pageOrigin;
+    if (own && Object.hasOwn(AssistantMount.DIALOGS, items[0].action)) {
       const content = AssistantMount.dialogContent(items[0]);
       if (content.refusal) {
         // A dialog would offer a button that cannot work. The runtime runs nothing
@@ -106,6 +124,49 @@ export class AssistantMount {
     }
     AssistantMount.keepFocusInChat();
     return confirmed;
+  }
+
+  /**
+   * Ask the visitor, with the runtime's consent card, whether to contact a partner site.
+   * Focus the card while it waits, then put focus back in the chat.
+   *
+   * :param info: What the card shows, such as the partner's label and host and the request.
+   * :return: The card's answer, unchanged: "allow", "always" or "decline". The runtime
+   *   allows the call when this returns nothing.
+   */
+  static async consent(info) {
+    // defaultConsent() adds the card at once. The card has no role, and the stylesheet
+    // hides the status line while it waits, so name the card and focus its title.
+    const answer = AssistantMount.defaultConsent(info);
+    AssistantMount.focusConsentCard();
+    const decision = await answer;
+    // Answering the card removes its buttons, so focus may fall to the page body.
+    AssistantMount.keepFocusInChat();
+    return decision;
+  }
+
+  /**
+   * Name the newest consent card after its title, for screen readers. Move focus to that
+   * title when focus is in the chat or on the page body, not from the page's own form.
+   */
+  static focusConsentCard() {
+    const cards = document.querySelectorAll("#ns-msgs .ns-consent");
+    const card = cards[cards.length - 1];
+    const title = card ? card.querySelector(".ns-consent-title") : null;
+    if (!title) {
+      return;
+    }
+    card.setAttribute("role", "group");
+    card.setAttribute("aria-label", title.textContent);
+    // A visitor typing in the page's own form keeps focus, and their keystrokes.
+    const active = document.activeElement;
+    if (active && active !== document.body && !active.closest("#agent-app")) {
+      return;
+    }
+    // tabIndex -1 lets the title take focus. Enter cannot activate a title, so a stray
+    // Enter answers nothing.
+    title.tabIndex = -1;
+    title.focus();
   }
 
   /**
@@ -226,9 +287,9 @@ export class AssistantMount {
   }
 
   /**
-   * Put focus back in the chat input when a dialog left it on the page body. A chat form
-   * disables its controls when it is sent, so focus can fall to the body, and the next
-   * Tab would start at the top of the page.
+   * Put focus back in the chat input when a dialog or the consent card left it on the
+   * page body. A chat form disables its controls when it is sent, so focus can fall to
+   * the body, and the next Tab would start at the top of the page.
    */
   static keepFocusInChat() {
     if (document.activeElement === document.body || document.activeElement === null) {
