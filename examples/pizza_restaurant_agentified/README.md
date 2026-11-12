@@ -68,6 +68,11 @@ Adapted from that bundle:
   through from `onActionConfirm`. Without approval, no order is submitted.
   `runner.js` also exposes `render_cruse`, so the model can attach widgets
   through a real tool call instead of relying on fenced JSON in its final text.
+  Its tool schema documents each supported component's wire format, so concise
+  restaurant instructions do not need to repeat UI recipes. The invocation
+  context clarifies that CRUSE intake forms complement the website's controls.
+  Multi-field follow-up questions, including optional or conditional fields,
+  require one consolidated intake form even after a successful cart update.
   These widgets survive plain-text final answers and specialist handoffs.
   `cruse.js` accepts unfenced structured responses and combines compatible
   child intake forms when the coordinator does not provide its own composition.
@@ -120,6 +125,8 @@ its submitted values can feed the checkout tool on the next turn.
 Additional checks cover widget tool calls reaching the final UI stream event,
 structured responses without fences, and preservation of specialist widgets
 when the coordinator answers in plain text.
+The tool-call check also verifies that the model receives component-format
+guidance and permission to use intake widgets alongside existing site controls.
 They do not call a paid LLM. Use the steps above to check a live provider and the UI.
 
 ## Limits
