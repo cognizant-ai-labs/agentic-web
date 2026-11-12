@@ -1,10 +1,20 @@
-# The Open Agentic Web
+# The Open Agentic Web Challenge
+
 
 Create, own and connect agents on today's web. [The Open Agentic Web](https://worldwideagenticweb.org).
 
 > [!IMPORTANT]
 > This repository is actively evolving and its content changes frequently.
 > Please check back often, and pull the latest version before you use anything here.
+
+## Hackathon
+
+Register for the [DevPost hackathon](https://cognizant-agenticweb.devpost.com/) to build the first publicly accessible
+interconnected agentic websites, the foundations of the world wide agentic web.
+
+The [starter tools](#starter-tools) below are optional resources for participants. Registrants can
+also claim free credits for [Mozilla's Otari](#mozillas-otari).
+
 
 ## Why
 
@@ -323,13 +333,6 @@ agent-site boundaries.
 The full agent network HOCON reference is available in 
 [this document](https://github.com/cognizant-ai-lab/neuro-san/blob/main/docs/agent_hocon_reference.md).
 
-
-## Hackathon
-
-Check the official [hackathon](https://cognizant-agenticweb.devpost.com/) page for details about the Agentic Web Hackathon.
-
-The [starter tools](#starter-tools) above are optional resources for participants. Registrants can
-also claim free credits for [Mozilla's Otari](#mozillas-otari).
 
 ## Ideas
 
