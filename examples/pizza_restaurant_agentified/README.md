@@ -80,8 +80,8 @@ Adapted from that bundle:
   ordering and delivery specialists, with concise instructions to read current
   website information and use existing website components and tools. Menu facts,
   implementation recipes and generated UI examples are kept out of the prompts.
-  WebMCP tools may be used when exposed; the existing page-local tools suffice
-  for this example. No unresolved remote specialist links are required.
+  The example uses page-local tools. No unresolved remote specialist links
+  are required.
 - `site.js`: adapts the generated `boot()` pattern to mount the assistant inside
   the restaurant. It enriches each local agent specification with a fresh
   `getRestaurantState()` snapshot, including the menu, cart, version and latest
