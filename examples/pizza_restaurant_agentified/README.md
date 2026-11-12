@@ -33,12 +33,11 @@ The assistant requires a configured provider; the manual website does not.
 3. Adjust a quantity with the manual buttons, then ask the assistant about your
    cart. Its next invocation includes the updated state.
 4. Ask to check out for pickup or delivery. Supply a name, an address for delivery,
-   and optionally a time today. When several details are missing, the assistant
-   collects them together in one CRUSE form, carrying forward answers already
-   given. Pickup and Delivery appear as selectable cards. The optional native
-   time picker accepts a time today; leave it empty for ASAP.
-   Submitting this form supplies the details to the agent; it then calls
-   `website_checkout_demo_order`.
+   and optionally a time today. The assistant guides you through the existing
+   website checkout components or asks for missing details in chat, carrying
+   forward answers already given. The optional native time picker accepts a
+   time today; leave it empty for ASAP. The assistant uses
+   `website_checkout_demo_order` to submit an order through its tools.
    Confirm its browser review dialog after checking the cart and total. The cart clears and the site
    displays the same confirmation it uses for manual orders.
 5. Ask about your latest order's status. It reports the local simulated order as
@@ -78,9 +77,11 @@ Adapted from that bundle:
   specialist links, the `actions.module` registration entry, and an explicit
   `actions.agentTools` list for state reads, cart changes and confirmed checkout.
 - `pizza_restaurant_website_assistant.network.json`: the coordinator and menu,
-  ordering and delivery specialists, with grounded instructions replacing the
-  generated instructions to fabricate results. The generated CRUSE presentation
-  instructions remain. No unresolved remote specialist links are required.
+  ordering and delivery specialists, with concise instructions to read current
+  website information and use existing website components and tools. Menu facts,
+  implementation recipes and generated UI examples are kept out of the prompts.
+  WebMCP tools may be used when exposed; the existing page-local tools suffice
+  for this example. No unresolved remote specialist links are required.
 - `site.js`: adapts the generated `boot()` pattern to mount the assistant inside
   the restaurant. It enriches each local agent specification with a fresh
   `getRestaurantState()` snapshot, including the menu, cart, version and latest
