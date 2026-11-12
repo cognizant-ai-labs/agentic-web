@@ -39,6 +39,9 @@ Edited files. Each one has a line near its top saying that it was changed:
   stray Enter cannot confirm an action. Closing the dialog puts focus back where it was.
 - `index.js` tells visitors that only actions that cannot be undone ask first, when the
   site offers `website_*` tools.
+- `llm.js` sends Anthropic's browser opt-in header,
+  `anthropic-dangerous-direct-browser-access: true`, when the router is
+  `api.anthropic.com`. nsdeploy's runtime sends it too since nsdeploy commit `53a787c`.
 
 Protocol name: `nsdeploy`. Use it for `<protocol_name>` in `agent-manifest.json`. It
 names the discovery files, such as `.well-known/nsdeploy.json`, that nsdeploy's tools read.
