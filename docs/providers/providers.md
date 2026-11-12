@@ -15,7 +15,7 @@ It requires the provider to allow browser calls (CORS).
 | [Anthropic](#anthropic) | `https://api.anthropic.com/v1` | `claude-haiku-4-5` | Does not work |
 | [LiteLLM, self-hosted](#litellm-self-hosted) | `http://127.0.0.1:4000/v1` | your model alias | Works |
 | [Ollama, local](#ollama-local) | `http://127.0.0.1:11434/v1` | `gemma4:e4b` | Local testing only |
-| [Otari](otari.md) | `https://api.otari.ai/api/v1` | `alibaba/qwen-3.5-35b-a3b` | Self-hosted Otari only |
+| [Otari](otari.md) | `https://api.otari.ai/api/v1` | `alibaba/qwen-3.5-35b-a3b` | Works, but [some models fail](otari.md#hosted-otari-otariai) |
 
 To reach Claude models from a static bundle, use OpenRouter or LiteLLM.
 

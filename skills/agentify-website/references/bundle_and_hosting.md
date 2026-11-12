@@ -192,7 +192,7 @@ site's own browser storage only.
 ## Providers and other things to warn about
 
 - The browser calls the LLM router directly, so the router must allow CORS. OpenAI,
-  OpenRouter and LiteLLM work. Anthropic's API and hosted Otari do not. See the
+  OpenRouter, LiteLLM and hosted Otari work. Anthropic's API does not. See the
   [LLM provider notes](https://github.com/cognizant-ai-labs/agentic-web/blob/main/docs/providers/providers.md).
 - Pick a model that reliably makes tool calls. Without tool calls the agent cannot read
   the page or act on it.
