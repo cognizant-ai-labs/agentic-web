@@ -197,7 +197,19 @@ Try the [hosted version](https://neuro-san.evolution.ml/) with your own LLM keys
 
 ### Mozilla’s Otari
 
-[Otari](https://otari.ai) is an open-source LLM gateway. Use it to manage your LLM keys and connect to multiple LLM providers.
+[Otari](https://otari.ai) by Mozilla.ai is an open-source AI infrastructure platform and LLM gateway.
+Use it to manage your LLM keys and build applications and agents with the models you choose,
+including open-weight models, without being locked into a single provider.
+
+Otari is optional. If you'd like to try it during the hackathon:
+- **Claim your credits.** Hackathon registrants get free Otari credits (limited to the first 100
+  registrants). Sign up at [otari.ai](https://otari.ai), then redeem the voucher code shared with
+  registered participants on your [billing page](https://otari.ai/dashboard#/organization/billing).
+- **Get help.** Join the [Mozilla OSAI Discord](https://discord.gg/AzMfpN3VNS), select the
+  `agentic-hackathon` role in Channels & Roles, and ask in `#otari-ai`. The Otari developers are there.
+- **Share feedback.** Post in `#otari-ai` or
+  [open an issue](https://github.com/mozilla-ai/otari/issues). Issues and pull requests on the
+  [Otari repo](https://github.com/mozilla-ai/otari) are welcome, and so are stars.
 
 An open agentic website can use Otari as its LLM router:
 - **Hosted Otari** (`https://api.otari.ai/api/v1`) blocks calls from the browser, so a
@@ -315,6 +327,9 @@ The full agent network HOCON reference is available in
 ## Hackathon
 
 Check the official [hackathon](https://cognizant-agenticweb.devpost.com/) page for details about the Agentic Web Hackathon.
+
+The [starter tools](#starter-tools) above are optional resources for participants. Registrants can
+also claim free credits for [Mozilla's Otari](#mozillas-otari).
 
 ## Ideas
 

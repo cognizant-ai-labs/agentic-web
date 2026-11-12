@@ -144,3 +144,15 @@ Things to know:
 | 402 "No pricing is configured" | Self-hosted: add a `pricing` entry for that model. |
 | 404 "Otari serves its API under /api/v1" | The base URL must end in `/api/v1`, not `/v1`. |
 | 401 "Invalid API key" | The key is wrong. Self-hosted: check that `OTARI_LOCAL_API_KEY` was set in the shell that ran `docker run`. |
+
+## Get help and share feedback
+
+The Otari developers are on the [Mozilla OSAI Discord](https://discord.gg/AzMfpN3VNS).
+Join, select the `agentic-hackathon` role in Channels & Roles, and head to `#otari-ai`.
+
+- **Stuck?** Ask your question in `#otari-ai`.
+- **Hit a bug or a rough edge?** Post it in `#otari-ai` or
+  [open an issue on GitHub](https://github.com/mozilla-ai/otari/issues). Include what you were
+  trying to do, the model you used, and the exact error message.
+- **Want to contribute?** Pull requests on the [Otari repo](https://github.com/mozilla-ai/otari)
+  are welcome.
