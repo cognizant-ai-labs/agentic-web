@@ -2,13 +2,13 @@
 
 [Otari](https://otari.ai) is an open-source LLM gateway with an OpenAI-compatible API.
 An open agentic website can use it as its LLM router. Mozilla runs a hosted Otari, and
-you can also run one yourself. For other providers, see [LLM providers](README.md).
+you can also run one yourself. For other providers, see [LLM providers](providers.md).
 
-Which setup works depends on how Otari is used:
+Both work from a static bundle:
 
 | Router | Static bundle (`--static-bundle`) |
 |---|---|
-| Hosted Otari (`otari.ai`) | Does not work: hosted Otari blocks browser calls |
+| Hosted Otari (`otari.ai`) | Works, but some models fail on every request. See [Hosted Otari](#hosted-otari-otariai). |
 | Self-hosted Otari | Works, if Otari allows the site's origin |
 
 ## How the page reaches the LLM
@@ -22,15 +22,47 @@ An empty Router base URL means the `--upstream` URL given at build time.
 
 OpenAI allows browser calls, which is why the static bundle in the
 [Quickstart](../quickstart.md#manually-generate-a-website-bundle) works with it. Hosted Otari
-does not.
+allows them too.
 
 ## Hosted Otari (otari.ai)
 
-- The base URL is `https://api.otari.ai/api/v1`. Plain `/v1` returns 404.
-- Hosted Otari does not allow browser calls. If Router base URL points straight at Otari,
-  the chat shows `⚠️ Failed to fetch` and the browser console shows CORS errors. A correct
-  key and URL don't help.
-- To use Otari from a static site, run it yourself as shown below.
+Hosted Otari allows browser calls from any site, so a static site can call it directly.
+In the `⚙ BYOK / router settings` panel, set:
+
+- API key: an API key from your [otari.ai](https://otari.ai) account.
+- Model: `alibaba/qwen-3.5-35b-a3b`
+- Router base URL: `https://api.otari.ai/api/v1`
+
+Click `Apply, save & reload`, then chat.
+
+Things to know:
+
+- **Base URL.** It must end in `/api/v1`. Plain `/v1` returns 404, and the browser
+  reports that as a CORS error.
+- **Pick a chat model that makes tool calls.** `GET /api/v1/models` lists every model.
+  Look for `"type": "chat"` and `tools` in `supported_parameters`.
+- **Some models fail on every request.** With `alibaba/qwen3-14b` and
+  `alibaba/qwen3-30b-a3b`, every chat fails with
+  `LLM HTTP 400: This model's maximum context length is 40960 tokens. However, you requested 40960 output tokens ...`.
+  The site doesn't set an output limit (`max_tokens`), and for these models the request
+  then asks for the model's whole context window as output. That leaves no room for the
+  prompt. Other models with the same window, such as `alibaba/qwen3-32b`, don't have this
+  problem.
+  - **On a site,** pick another model, such as `alibaba/qwen-3.5-35b-a3b`. The site's
+    request has no `max_tokens`, and the settings panel has no field for it.
+  - **From your own code,** add `max_tokens` to the JSON body of the
+    `POST /api/v1/chat/completions` request, next to `model` and `messages`. It's a body
+    field, not a header:
+    ```json
+    {
+      "model": "alibaba/qwen3-14b",
+      "messages": [{"role": "user", "content": "Hi"}],
+      "max_tokens": 4096
+    }
+    ```
+    The prompt and `max_tokens` together must fit in the context window. For example, a
+    2,257-token prompt works with any `max_tokens` up to 32,768 on these models, but
+    fails with 39,000.
 
 ## Self-hosted Otari with local models
 
@@ -138,7 +170,8 @@ Things to know:
 
 | Symptom | Cause and fix |
 |---|---|
-| Chat shows `⚠️ Failed to fetch`, console shows "blocked by CORS policy" | The browser is calling a router that doesn't allow this page. Hosted Otari never allows it, so use a self-hosted Otari. For self-hosted Otari, add the page's exact origin to `cors_allow_origins` and restart Otari. |
+| Chat shows `⚠️ Failed to fetch`, console shows "blocked by CORS policy" | The browser is calling a router that doesn't allow this page. Hosted Otari: check that Router base URL ends in `/api/v1`. Self-hosted Otari: add the page's exact origin to `cors_allow_origins`, or use `"*"`, and restart Otari. |
+| 400 "This model's maximum context length is ... However, you requested ... output tokens" | Hosted Otari: this model fails when the request has no `max_tokens`, and the site doesn't send one. Pick another model, such as `alibaba/qwen-3.5-35b-a3b`. From your own code, add `max_tokens` to the request body, small enough to fit in the context window with the prompt. |
 | The site keeps using an old router | The panel saves your setup in the browser. On `localhost` and `127.0.0.1` it is also kept in a cookie shared by every local port for 180 days, so a router saved for another site follows you. Set Router base URL to the router you want, or clear it to use the site's default, then `Apply, save & reload`. |
 | 400 `invalid_model` | Use an exact model ID from `GET /api/v1/models`. |
 | 402 "No pricing is configured" | Self-hosted: add a `pricing` entry for that model. |

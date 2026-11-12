@@ -12,12 +12,12 @@ It requires the provider to allow browser calls (CORS).
 |---|---|---|---|
 | [OpenAI](#openai) | `https://api.openai.com/v1` | `gpt-4.1-mini` | Works |
 | [OpenRouter](#openrouter) | `https://openrouter.ai/api/v1` | `anthropic/claude-haiku-5.5` | Works |
-| [Anthropic](#anthropic) | `https://api.anthropic.com/v1` | `claude-haiku-4-5` | Does not work |
+| [Anthropic](#anthropic) | `https://api.anthropic.com/v1` | `claude-haiku-4-5` | Newer sites only, if your organization allows it |
 | [LiteLLM, self-hosted](#litellm-self-hosted) | `http://127.0.0.1:4000/v1` | your model alias | Works |
 | [Ollama, local](#ollama-local) | `http://127.0.0.1:11434/v1` | `gemma4:e4b` | Local testing only |
-| [Otari](otari.md) | `https://api.otari.ai/api/v1` | `alibaba/qwen-3.5-35b-a3b` | Self-hosted Otari only |
+| [Otari](otari.md) | `https://api.otari.ai/api/v1` | `alibaba/qwen-3.5-35b-a3b` | Works, but [some models fail](otari.md#hosted-otari-otariai) |
 
-To reach Claude models from a static bundle, use OpenRouter or LiteLLM.
+If Anthropic refuses browser calls from your site, use OpenRouter or LiteLLM for Claude models.
 
 ## Connecting a site to a provider
 
@@ -60,11 +60,18 @@ Things to know for every provider:
 
 - Anthropic's OpenAI-compatible endpoint is `https://api.anthropic.com/v1`. It accepts
   your Anthropic key as a Bearer token, and tool calls work.
-- Anthropic blocks browser calls unless the request carries a special opt-in header,
-  which `nsdeploy` currently doesn't send.
-- This endpoint's model list can't be read, so there is no model check. Type an exact
+- **Newer sites only.** Anthropic allows browser calls only when the request carries the
+  header `anthropic-dangerous-direct-browser-access: true`. Sites generated with
+  `nsdeploy` since November 11, 2026 send it, so the browser can call Anthropic with no
+  router or gateway in between. Older sites don't send it, and neither do the examples in
+  this repo. Generate an older site again to get it.
+- **Your organization must allow it.** Some Anthropic organizations refuse browser calls.
+  The chat then shows
+  `LLM HTTP 401: ... CORS requests are not allowed for this Organization because of its settings`.
+  The same key still works from a server. If you see this, ask Anthropic support, or use
+  OpenRouter or LiteLLM instead.
+- **No model check.** The browser can't read this endpoint's model list, so type an exact
   model ID such as `claude-haiku-4-5`.
-- For a static bundle, put OpenRouter or LiteLLM in front of Anthropic.
 
 ## LiteLLM, self-hosted
 
