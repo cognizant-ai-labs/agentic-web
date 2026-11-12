@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Tidewhistle Guesthouse has four rooms above the harbor in Marrow Point. Check availability and book your stay.">
+    <title>Tidewhistle Guesthouse · Marrow Point</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="styles.css">
+    <script type="module" src="js/app.js"></script>
+    <script type="module" src="site.js"></script>
+  </head>
+  <body>
+    <header>
+      <a class="brand" href="index.html">Tidewhistle <span>Guesthouse</span></a>
+      <nav aria-label="Main navigation">
+        <a href="#rooms">Rooms</a>
+        <a href="#availability">Book</a>
+        <a href="#manage">Manage booking</a>
+        <a href="policies.html">Policies</a>
+        <a href="#assistant">Ask us</a>
+      </nav>
+    </header>
+    <main>
+      <section class="intro" aria-labelledby="welcome">
+        <p class="eyebrow">14 Quay Lane · Marrow Point</p>
+        <h1 id="welcome">Four quiet rooms above the harbor.</h1>
+        <p id="about">Tidewhistle is a small, family-run guesthouse two minutes' walk from the ferry slip.
+          Fall asleep to the rigging and wake up to the fishing boats heading out.</p>
+        <p id="demo-note" class="note">Demo site: bookings are simulated and kept in this page until you refresh it.
+          Nothing is reserved or charged.</p>
+      </section>
+
+      <section id="rooms" aria-labelledby="rooms-heading">
+        <h2 id="rooms-heading">Rooms and rates</h2>
+        <p id="rooms-note">Every room has its own bathroom, free Wi-Fi, fresh towels and a tea tray.
+          Friday and Saturday nights cost a little more.</p>
+        <div id="room-list" class="room-list"></div>
+        <noscript><p>Please turn on JavaScript to see our rooms and book, or call us on 555-0147.</p></noscript>
+      </section>
+
+      <div class="booking-layout">
+        <section id="availability" aria-labelledby="availability-heading">
+          <h2 id="availability-heading">Check availability</h2>
+          <form id="search-form" novalidate>
+            <div class="field-row">
+              <div class="field">
+                <label for="search-checkIn">Check-in</label>
+                <input id="search-checkIn" type="date" required>
+              </div>
+              <div class="field">
+                <label for="search-checkOut">Check-out</label>
+                <input id="search-checkOut" type="date" required>
+              </div>
+              <div class="field">
+                <label for="search-guests">Guests</label>
+                <select id="search-guests">
+                  <option>1</option>
+                  <option selected>2</option>
+                  <option>3</option>
+                  <option>4</option>
+                </select>
+              </div>
+            </div>
+            <p class="note">Stays that include a Saturday night are at least 2 nights.</p>
+            <button type="submit">Search rooms</button>
+          </form>
+          <ul id="search-results" class="results"></ul>
+        </section>
+
+        <section id="booking" class="panel" aria-labelledby="booking-heading">
+          <h2 id="booking-heading">Book your stay</h2>
+          <form id="booking-form" novalidate>
+            <fieldset id="stay-fields">
+              <legend>Your stay</legend>
+              <label for="book-roomId">Room</label>
+              <select id="book-roomId" required>
+                <option value="">Choose a room</option>
+              </select>
+              <div class="field-row">
+                <div class="field">
+                  <label for="book-checkIn">Check-in</label>
+                  <input id="book-checkIn" type="date" required>
+                </div>
+                <div class="field">
+                  <label for="book-checkOut">Check-out</label>
+                  <input id="book-checkOut" type="date" required>
+                </div>
+                <div class="field">
+                  <label for="book-guests">Guests</label>
+                  <select id="book-guests">
+                    <option>1</option>
+                    <option selected>2</option>
+                    <option>3</option>
+                    <option>4</option>
+                  </select>
+                </div>
+              </div>
+              <fieldset id="book-extras" class="extras" tabindex="-1">
+                <legend>Extras</legend>
+              </fieldset>
+            </fieldset>
+            <div id="quote" class="quote"></div>
+            <fieldset>
+              <legend>Your details</legend>
+              <div class="field-row">
+                <div class="field">
+                  <label for="book-firstName">First name</label>
+                  <input id="book-firstName" autocomplete="given-name" maxlength="60" required>
+                </div>
+                <div class="field">
+                  <label for="book-lastName">Last name</label>
+                  <input id="book-lastName" autocomplete="family-name" maxlength="60" required>
+                </div>
+              </div>
+              <label for="book-email">Email</label>
+              <input id="book-email" type="email" autocomplete="email" maxlength="120" required>
+              <label for="book-phone">Phone (optional)</label>
+              <input id="book-phone" type="tel" autocomplete="tel" maxlength="20">
+              <label for="book-arrival">Estimated arrival</label>
+              <select id="book-arrival" required>
+                <option value="">Choose a time</option>
+              </select>
+              <label for="book-requests">Special requests (optional)</label>
+              <textarea id="book-requests" rows="3" maxlength="500"
+                placeholder="A travel cot, help with bags, a dog in the Garden Room..."></textarea>
+            </fieldset>
+            <p id="payment-note" class="note">Nothing to pay now. You pay at the guesthouse when you arrive, by card or cash.
+              We don't take payment online.</p>
+            <button type="submit">Confirm booking</button>
+          </form>
+          <div id="confirmation" class="confirmation" tabindex="-1" hidden></div>
+        </section>
+      </div>
+
+      <section id="manage" aria-labelledby="manage-heading">
+        <h2 id="manage-heading">Manage my booking</h2>
+        <p>Enter your confirmation code and the last name on the booking to see your stay or cancel it.</p>
+        <form id="manage-form" class="field-row" novalidate>
+          <div class="field">
+            <label for="manage-code">Confirmation code</label>
+            <input id="manage-code" autocomplete="off" maxlength="12" placeholder="TW-XXXX" required>
+          </div>
+          <div class="field">
+            <label for="manage-lastName">Last name</label>
+            <input id="manage-lastName" autocomplete="family-name" maxlength="60" required>
+          </div>
+          <div class="field">
+            <button type="submit">Find booking</button>
+          </div>
+        </form>
+        <div id="manage-result" class="manage-result" tabindex="-1"></div>
+        <p id="changes-note" class="note">Bookings can't be changed online. To change your dates or room, cancel and book again,
+          or call us on 555-0147. Please read the <a href="policies.html#cancellation">cancellation policy</a> first.</p>
+      </section>
+
+      <section id="assistant" class="assistant" aria-labelledby="assistant-heading">
+        <h2 id="assistant-heading">Ask Tidewhistle Guesthouse</h2>
+        <p>Our assistant can check free rooms and prices, answer questions about the rooms and house policies,
+          and book or cancel a stay for you.</p>
+        <p class="assistant-note">Your messages and this page's data go to the LLM provider you choose in the settings below. You confirm anything that cannot be undone before it happens.</p>
+        <p id="assistant-status" role="status">Connecting the assistant… If this message stays, the assistant could not load. You can still use the page directly.</p>
+        <div id="agent-app">
+          <div data-ns-slot="header"></div>
+          <div class="assistant-panels">
+            <div data-ns-slot="chat"></div>
+            <div data-ns-slot="agents"></div>
+          </div>
+          <div data-ns-slot="settings"></div>
+        </div>
+      </section>
+
+      <section id="around" aria-labelledby="around-heading">
+        <h2 id="around-heading">Around Marrow Point</h2>
+        <p id="tours-note">For boat trips, seal watching and guided walks along the sea wall, we recommend our neighbors at
+          <a href="https://harbortours.example.com/">Marrow Point Harbor Tours</a> (555-0162).
+          Please book tours with them directly, as we can't book tours for you.</p>
+        <p id="travel-note">Getting here: we don't offer airport pickup. The airport coach stops at the ferry slip every two hours,
+          and there's a taxi rank across the road.</p>
+      </section>
+      <p id="status" class="visually-hidden" role="status" aria-live="polite"></p>
+    </main>
+    <footer>
+      <p id="contact">Tidewhistle Guesthouse · 14 Quay Lane, Marrow Point · 555-0147 ·
+        <a href="mailto:tidewhistle@example.com">tidewhistle@example.com</a></p>
+      <p id="phone-hours"><a href="policies.html">House policies</a> · Phone lines open 8 am to 9 pm</p>
+    </footer>
+  </body>
+</html>
