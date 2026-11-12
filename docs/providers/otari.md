@@ -44,10 +44,15 @@ Things to know:
 - **Some models fail on every request.** With `alibaba/qwen3-14b` and
   `alibaba/qwen3-30b-a3b`, every chat fails with
   `LLM HTTP 400: This model's maximum context length is 40960 tokens. However, you requested 40960 output tokens ...`.
-  The site doesn't set an output limit, and for these models the request then asks for
-  the model's whole context window as output. That leaves no room for the prompt. Other
-  models with the same window, such as `alibaba/qwen3-32b`, don't have this problem. If
-  you see this error, pick another model, such as `alibaba/qwen-3.5-35b-a3b`.
+  The site doesn't set an output limit (`max_tokens`), and for these models the request
+  then asks for the model's whole context window as output. That leaves no room for the
+  prompt. Other models with the same window, such as `alibaba/qwen3-32b`, don't have this
+  problem.
+  - **On a site,** pick another model, such as `alibaba/qwen-3.5-35b-a3b`. The site has
+    no setting for `max_tokens`.
+  - **From your own code,** set `max_tokens`. The prompt and `max_tokens` together must
+    fit in the context window. For example, a 2,257-token prompt works with any
+    `max_tokens` up to 32,768 on these models, but fails with 39,000.
 
 ## Self-hosted Otari with local models
 
@@ -156,7 +161,7 @@ Things to know:
 | Symptom | Cause and fix |
 |---|---|
 | Chat shows `⚠️ Failed to fetch`, console shows "blocked by CORS policy" | The browser is calling a router that doesn't allow this page. Hosted Otari: check that Router base URL ends in `/api/v1`. Self-hosted Otari: add the page's exact origin to `cors_allow_origins`, or use `"*"`, and restart Otari. |
-| 400 "This model's maximum context length is ... However, you requested ... output tokens" | Hosted Otari: this model fails when the request sets no output limit, and the site doesn't set one. Pick another model, such as `alibaba/qwen-3.5-35b-a3b`. |
+| 400 "This model's maximum context length is ... However, you requested ... output tokens" | Hosted Otari: this model fails when the request has no `max_tokens`, and the site doesn't send one. Pick another model, such as `alibaba/qwen-3.5-35b-a3b`. From your own code, set a `max_tokens` that fits in the context window with the prompt. |
 | The site keeps using an old router | The panel saves your setup in the browser. On `localhost` and `127.0.0.1` it is also kept in a cookie shared by every local port for 180 days, so a router saved for another site follows you. Set Router base URL to the router you want, or clear it to use the site's default, then `Apply, save & reload`. |
 | 400 `invalid_model` | Use an exact model ID from `GET /api/v1/models`. |
 | 402 "No pricing is configured" | Self-hosted: add a `pricing` entry for that model. |
