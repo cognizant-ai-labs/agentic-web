@@ -33,12 +33,11 @@ The assistant requires a configured provider; the manual website does not.
 3. Adjust a quantity with the manual buttons, then ask the assistant about your
    cart. Its next invocation includes the updated state.
 4. Ask to check out for pickup or delivery. Supply a name, an address for delivery,
-   and optionally a time today. When several details are missing, the assistant
-   collects them together in one CRUSE form, carrying forward answers already
-   given. Pickup and Delivery appear as selectable cards. The optional native
-   time picker accepts a time today; leave it empty for ASAP.
-   Submitting this form supplies the details to the agent; it then calls
-   `website_checkout_demo_order`.
+   and optionally a time today. The assistant guides you through the existing
+   website checkout components or asks for missing details in chat, carrying
+   forward answers already given. The optional native time picker accepts a
+   time today; leave it empty for ASAP. The assistant uses
+   `website_checkout_demo_order` to submit an order through its tools.
    Confirm its browser review dialog after checking the cart and total. The cart clears and the site
    displays the same confirmation it uses for manual orders.
 5. Ask about your latest order's status. It reports the local simulated order as
@@ -69,6 +68,11 @@ Adapted from that bundle:
   through from `onActionConfirm`. Without approval, no order is submitted.
   `runner.js` also exposes `render_cruse`, so the model can attach widgets
   through a real tool call instead of relying on fenced JSON in its final text.
+  Its tool schema documents each supported component's wire format, so concise
+  restaurant instructions do not need to repeat UI recipes. The invocation
+  context clarifies that CRUSE intake forms complement the website's controls.
+  Multi-field follow-up questions, including optional or conditional fields,
+  require one consolidated intake form even after a successful cart update.
   These widgets survive plain-text final answers and specialist handoffs.
   `cruse.js` accepts unfenced structured responses and combines compatible
   child intake forms when the coordinator does not provide its own composition.
@@ -78,9 +82,11 @@ Adapted from that bundle:
   specialist links, the `actions.module` registration entry, and an explicit
   `actions.agentTools` list for state reads, cart changes and confirmed checkout.
 - `pizza_restaurant_website_assistant.network.json`: the coordinator and menu,
-  ordering and delivery specialists, with grounded instructions replacing the
-  generated instructions to fabricate results. The generated CRUSE presentation
-  instructions remain. No unresolved remote specialist links are required.
+  ordering and delivery specialists, with concise instructions to read current
+  website information and use existing website components and tools. Menu facts,
+  implementation recipes and generated UI examples are kept out of the prompts.
+  The example uses page-local tools. No unresolved remote specialist links
+  are required.
 - `site.js`: adapts the generated `boot()` pattern to mount the assistant inside
   the restaurant. It enriches each local agent specification with a fresh
   `getRestaurantState()` snapshot, including the menu, cart, version and latest
@@ -119,6 +125,8 @@ its submitted values can feed the checkout tool on the next turn.
 Additional checks cover widget tool calls reaching the final UI stream event,
 structured responses without fences, and preservation of specialist widgets
 when the coordinator answers in plain text.
+The tool-call check also verifies that the model receives component-format
+guidance and permission to use intake widgets alongside existing site controls.
 They do not call a paid LLM. Use the steps above to check a live provider and the UI.
 
 ## Limits

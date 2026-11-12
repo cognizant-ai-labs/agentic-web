@@ -214,7 +214,30 @@ export async function buildToolTable(ctx, spec, chain, parentSpan) {
             type: "object", required: ["version", "components"], additionalProperties: false,
             properties: {
               version: { type: "integer", enum: [1] },
-              components: { type: "array", minItems: 1, items: { type: "object" } },
+              components: {
+                type: "array", minItems: 1,
+                items: {
+                  type: "object", required: ["kind"],
+                  properties: {
+                    id: { type: "string", description: "Stable component ID using letters, numbers, underscores, dots or hyphens (up to 100 characters)." },
+                    kind: { type: "string", enum: ["form", "choice", "confirm", "info", "report", "table", "chart", "html", "action"] },
+                    title: { type: "string" },
+                    description: { type: "string" },
+                  },
+                  // Keep flexible component fields, but document the wire contract
+                  // here so agents need no copied UI recipes in their instructions.
+                  description: `Each component has kind, a stable id, optional title and description, plus the fields for its kind:
+form: schema:{type:"object",properties:{fieldKey:{type:"string",title:"Label"}},required:["fieldKey"]}, optional submitLabel. Use 1–40 properties. Field types: string, number, integer, boolean, array with items.enum. Strings support enum and format:"date" or "time". Fields may have description, minimum, maximum, default (known values only), and "x-ui":{widget:"radio",enumLabels:["Readable label"]} or {widget:"textarea"}. enumLabels match enum order. Ordinary intake forms omit submit: answers return as CRUSE interaction.values on the next turn.
+choice: options:[{title:"Label",value:"stable-value",subtitle:"Optional detail",meta:"Optional note"}].
+confirm: confirmText:"Explicit proposed action", optional confirmLabel and cancelLabel. This does not replace a website tool's browser approval.
+info: fields:{"Label":"Value"}.
+report: markdown:"Formatted explanation".
+table: columns:["Column"], rows:[["Value"]]. Each row matches the columns; cells are strings, numbers, booleans or null.
+chart: chartType:"bar" or "line", labels:["Label"], series:[{name:"Series",values:[1]}], summary:"Explanation", optional unit. Use actual data, finite numbers, 1–120 labels and 1–8 series; each values array matches labels.
+html: html:"<article><h2>Heading</h2><p>Content</p></article>". Semantic HTML and safe links only; no scripts, CSS, resources or form controls.
+action: action (exact reference from the available action catalog), arguments (object). Use website_* tools for connected operations instead of inventing action bindings.`,
+                },
+              },
             },
           },
         },
