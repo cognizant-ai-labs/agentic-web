@@ -20,9 +20,9 @@ fields decide where LLM requests go. The browser sends each request to the Route
 The browser calls the router itself, so the router must allow browser calls (CORS).
 An empty Router base URL means the `--upstream` URL given at build time.
 
-OpenAI allows browser calls, which is why the static bundle in the
-[Quickstart](../quickstart.md#manually-generate-a-website-bundle) works with it. Hosted Otari
-allows them too.
+Hosted Otari allows browser calls, which is why the static bundle in the
+[Quickstart](../quickstart.md#manually-generate-a-website-bundle) uses it by default.
+OpenAI allows them too.
 
 ## Hosted Otari (otari.ai)
 

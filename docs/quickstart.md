@@ -54,8 +54,12 @@ a website bundle from a `.hocon` file describing an agent network.
 1. Create a self-contained static bundle  
    ```shell
    python -m nsdeploy examples/pizza_restaurant_website_assistant.hocon \
-     --static-bundle --out ./examples/sites/pizza_restaurant_website_assistant_static
+     --static-bundle --upstream https://api.otari.ai/api/v1 \
+     --out ./examples/sites/pizza_restaurant_website_assistant_static
    ```
+   `--upstream` sets the site's default router, here hosted [Otari](providers/otari.md).
+   The default model, `alibaba/qwen-3.5-35b-a3b`, comes from the `.hocon` file's
+   `llm_config`.
 1. Check the output of the command, especially for warnings about DEMO-MODE agents (ungrounded agents)
    and omitted server tools.
 1. Preview the [generated bundle](../examples/sites/pizza_restaurant_website_assistant_static)
@@ -75,8 +79,11 @@ the generated web page.
 
 ### BYOK (Bring Your Own Key) / router settings
 
-Expand the `⚙ BYOK / router settings` panel and set your API key, Model and
-OpenAI compatible endpoint URL.    
+Expand the `⚙ BYOK / router settings` panel and enter your
+[Otari](https://otari.ai) API key. The bundle uses hosted Otari and
+`alibaba/qwen-3.5-35b-a3b` by default, so you can leave Model and Router base URL empty.
+
+To use another provider, also set its Model and OpenAI compatible endpoint URL.
 For instance:
 - API key: `*****`
 - Model: `gpt-5.2`
