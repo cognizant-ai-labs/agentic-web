@@ -368,40 +368,74 @@ test("a consolidated CRUSE intake form survives tool exposure and feeds checkout
   assert(second.text.includes(getRestaurantState().lastOrder.orderId));
 });
 
-test("render_cruse tool widgets reach the UI event even when final text has no fence", async () => {
+test("adding a pizza can return a consolidated intake widget with a plain-text receipt", async () => {
   const config = JSON.parse(await readFile(new URL("../pizza_restaurant_website_assistant.network.json", import.meta.url)));
   const manifest = JSON.parse(await readFile(new URL("../agent-manifest.json", import.meta.url)));
   const presentation = { version: 1, components: [{
     kind: "form", id: "intake", title: "Order details",
     schema: { type: "object", properties: {
       customerName: { type: "string", title: "Your name" },
-      fulfillment: { type: "string", enum: ["pickup", "delivery"] },
+      fulfillment: { type: "string", enum: ["pickup", "delivery"],
+        "x-ui": { widget: "radio", enumLabels: ["Pickup", "Delivery"] } },
+      address: { type: "string", title: "Delivery address (only for delivery)" },
+      orderTime: { type: "string", format: "time", title: "Preferred time today",
+        description: "Leave empty for ASAP" },
     }, required: ["customerName", "fulfillment"] },
   }] };
   const engine = new Engine({ originUrl: scope.base });
   engine.actions = registry;
+  setCart([]);
   let calls = 0;
   engine.top = {
     network: new AgentNetwork(config, scope.network), base: scope.base, manifest,
     llm: { async chat({ tools, messages }) {
-      assert(tools.some(tool => tool.function.name === "render_cruse"));
+      const renderTool = tools.find(tool => tool.function.name === "render_cruse");
+      assert(renderTool);
+      // Scripted tool calls alone hid the regression when component guidance was
+      // removed from the network. Check what the real model is told as well.
+      const componentSchema = renderTool.function.parameters.properties.presentation.properties.components.items;
+      assert(componentSchema.required.includes("kind"));
+      for (const kind of componentSchema.properties.kind.enum) {
+        assert(componentSchema.description.includes(`${kind}:`), `Missing ${kind} wire format`);
+      }
+      assert(componentSchema.description.includes('properties:{fieldKey:'));
+      assert(componentSchema.description.includes('CRUSE interaction.values'));
+      assert(componentSchema.description.includes('format:"date" or "time"'));
+      const system = messages.find(message => message.role === "system").content;
+      assert(system.includes("does not prohibit a CRUSE intake form"));
+      assert(system.includes("ONE consolidated form"));
+      assert(system.includes("including optional or conditional details"));
+      assert(system.includes("MUST call render_cruse"));
+      assert(system.includes("after a successful website tool call"));
+      assert(system.includes("do not replace them with questions in prose"));
       calls++;
       if (calls === 1) return { content: "", toolCalls: [{
+        id: "add-pizza", type: "function", function: {
+          name: "website_add_to_cart", arguments: JSON.stringify({ id: "vegan", quantity: 1 }),
+        },
+      }] };
+      if (calls === 2) {
+        const receipt = JSON.parse(messages.find(message => message.name === "website_add_to_cart").content);
+        assert.equal(receipt.status, "succeeded");
+        assert.equal(receipt.result.total, 1300);
+        return { content: "", toolCalls: [{
         id: "render-intake", type: "function", function: {
           name: "render_cruse", arguments: JSON.stringify({ presentation }),
         },
-      }] };
-      assert.equal(JSON.parse(messages.find(message => message.role === "tool").content).status, "accepted");
-      return { content: "Fill in your order details below.", toolCalls: [] };
+        }] };
+      }
+      assert.equal(JSON.parse(messages.find(message => message.name === "render_cruse").content).status, "accepted");
+      return { content: "Added 1× Roasted Veg. Cart total: $13.00. Continue with the form below.", toolCalls: [] };
     } },
   };
   let result;
-  for await (const event of engine.streamTurn("Help me check out")) {
+  for await (const event of engine.streamTurn("Add a pizza to my cart")) {
     if (event.type === "turn.completed") result = event.result;
   }
-  assert.equal(result.text, "Fill in your order details below.");
+  assert.equal(result.text, "Added 1× Roasted Veg. Cart total: $13.00. Continue with the form below.");
   assert.deepEqual(result.presentation, presentation);
-  assert.equal(calls, 2);
+  assert.equal(nodes["cart-total"].textContent, "$13.00");
+  assert.equal(calls, 3);
 });
 
 test("structured CRUSE objects and compatible child intake forms are preserved", () => {

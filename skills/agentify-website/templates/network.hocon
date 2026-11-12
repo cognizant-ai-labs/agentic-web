@@ -21,8 +21,9 @@
 
     # The model to use when the visitor picks none in the settings. Keep it: without a
     # model, the runtime sends its placeholder "mock-1" to the visitor's provider.
+    # It is a model on hosted Otari, the default router in agent-manifest.json.
     "llm_config": {
-        "model_name": "gpt-4.1-mini"
+        "model_name": "alibaba/qwen-3.5-35b-a3b"
     },
 
     # Maximum model/tool round trips per agent invocation (runtime default 12).

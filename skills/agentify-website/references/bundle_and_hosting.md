@@ -40,7 +40,7 @@ editing the copy.
 | `networks[0].sample_queries` | Public metadata for people and other sites. The runtime UI does not show them. |
 | `brand` | The name in the chat header. |
 | `theme.primary` | Set inline as `--ns-primary` on the mount, so it overrides the CSS value. |
-| `llm_router.base_url`, `.byok_router`, `.mock` | Default router for BYOK. `mock: false` for a real site. |
+| `llm_router.base_url`, `.byok_router`, `.mock` | Default router for BYOK. The template uses hosted Otari, `https://api.otari.ai/api/v1`, to match the model in `templates/network.hocon`. If you change one, change the other. `mock: false` for a real site. |
 | `peer_policy`, `allowed_peers` | `"mode": "closed"`. List the origin of each partner site and MCP server in `allowed_peers`: the runtime refuses every other origin that this site's network asks for. A partner's network is checked against the partner's own `allowed_peers` (`runtime/engine.js`, `_assertAllowedPeer`), so a visitor here can also get a card for a site that a partner calls. |
 | `deployment.mode` | Must be `"static"`. |
 | `actions.version`, `.module`, `.bridge`, `.agentTools` | `1`, the actions module path, `"./bridge/action-bridge.html"` (the page other agent sites load, written by the build), and the action names that become `website_*` tools. |
@@ -244,7 +244,9 @@ If the copy has a README, update it before you finish:
 ## Providers and other things to warn about
 
 - The browser calls the LLM router directly, so the router must allow CORS. OpenAI,
-  OpenRouter and LiteLLM work. Anthropic's API and hosted Otari do not. See the
+  OpenRouter, LiteLLM and hosted Otari work. Anthropic's API works too, because
+  `runtime/llm.js` sends Anthropic's browser opt-in header, unless the Anthropic
+  organization refuses browser calls. See the
   [LLM provider notes](https://github.com/cognizant-ai-labs/agentic-web/blob/main/docs/providers/providers.md).
 - Pick a model that reliably makes tool calls. Without tool calls the agent cannot read
   the page or act on it.
