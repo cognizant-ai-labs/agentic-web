@@ -33,7 +33,9 @@ pages.
 5. Under **Manage my booking**, enter the code and your last name to see the
    booking and what cancelling it today would cost, then cancel it.
 6. Under **Ask Tidewhistle Guesthouse**, open **BYOK / router settings**, enter
-   your own API key and select **Apply, save & reload**. Then ask, for example,
+   your own [Otari](https://otari.ai) API key and select **Apply, save & reload**. The
+   site uses hosted Otari (`https://api.otari.ai/api/v1`) with
+   `alibaba/qwen-3.5-35b-a3b` by default. Then ask, for example,
    "Is any room free for two guests for three nights starting three weeks from
    today?" The browser asks you to confirm before the assistant books or
    cancels anything. On `127.0.0.1` the runtime also keeps the key in a cookie

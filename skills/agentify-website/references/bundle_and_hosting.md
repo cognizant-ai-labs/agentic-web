@@ -38,7 +38,7 @@ editing the copy.
 | `networks[0].sample_queries` | Public metadata for people and other sites. The runtime UI does not show them. |
 | `brand` | The name in the chat header. |
 | `theme.primary` | Set inline as `--ns-primary` on the mount, so it overrides the CSS value. |
-| `llm_router.base_url`, `.byok_router`, `.mock` | Default router for BYOK. `mock: false` for a real site. |
+| `llm_router.base_url`, `.byok_router`, `.mock` | Default router for BYOK. The template uses hosted Otari, `https://api.otari.ai/api/v1`, to match the model in `templates/network.hocon`. If you change one, change the other. `mock: false` for a real site. |
 | `peer_policy` | `"mode": "closed"` unless the network calls other sites. |
 | `deployment.mode` | Must be `"static"`. |
 | `actions.version`, `.module`, `.agentTools` | `1`, the actions module path, and the action names that become `website_*` tools. |
@@ -192,7 +192,9 @@ site's own browser storage only.
 ## Providers and other things to warn about
 
 - The browser calls the LLM router directly, so the router must allow CORS. OpenAI,
-  OpenRouter, LiteLLM and hosted Otari work. Anthropic's API does not. See the
+  OpenRouter, LiteLLM and hosted Otari work. Anthropic's API works too, because
+  `runtime/llm.js` sends Anthropic's browser opt-in header, unless the Anthropic
+  organization refuses browser calls. See the
   [LLM provider notes](https://github.com/cognizant-ai-labs/agentic-web/blob/main/docs/providers/providers.md).
 - Pick a model that reliably makes tool calls. Without tool calls the agent cannot read
   the page or act on it.

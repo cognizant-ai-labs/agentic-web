@@ -31,19 +31,7 @@
     "date_created": "2026-11-05T23:32:18.759708+00:00"
   },
   "llm_config": {
-    "fallbacks": [
-      {
-        "class": "openai",
-        "model_name": "gpt-5.2"
-      },
-      {
-        "model_name": "claude-sonnet"
-      },
-      {
-        "model_name": "gemini-3-flash"
-      }
-    ],
-    "model_name": "gpt-5.2"
+    "model_name": "alibaba/qwen-3.5-35b-a3b"
   },
   "max_execution_seconds": 600,
   "instructions_prefix": "\nYou are part of a team of assistants in pizza_restaurant_website_assistant.\nOnly answer inquiries that are directly within your area of expertise.\nDo not try to help for other matters.\nDo not mention what you can NOT do. Only mention what you can do.\n",

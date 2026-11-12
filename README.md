@@ -161,8 +161,10 @@ Its agents need to be grounded in the restaurant's actual menu and cart next:
    python -m http.server 8080 --directory ./examples/pizza_restaurant_agentified
    ```
    Open http://127.0.0.1:8080/, scroll to **Ask Little Oven**, and expand
-   **BYOK / router settings**. Enter your API key, model ID and a browser-accessible
-   OpenAI-compatible router base URL, then click **Apply, save & reload**.
+   **BYOK / router settings**. Enter your [Otari](#mozillas-otari) API key, then click
+   **Apply, save & reload**. The example uses hosted Otari and
+   `alibaba/qwen-3.5-35b-a3b` by default. For another provider, also enter its model ID
+   and a browser-accessible OpenAI-compatible router base URL.
    The selected provider receives the chat and restaurant context; LLM calls use
    the customer's credentials.
 
@@ -235,7 +237,8 @@ Otari is optional. If you'd like to try it during the hackathon:
 An open agentic website can use Otari as its LLM router:
 - **Hosted Otari** (`https://api.otari.ai/api/v1`) allows calls from the browser, so a
   static site can use it with your Otari API key. Some models fail on every request, so
-  start with `alibaba/qwen-3.5-35b-a3b`.
+  start with `alibaba/qwen-3.5-35b-a3b`. The examples in this repo use hosted Otari with
+  that model by default.
 - **Self-hosted Otari** works once you allow the site's origin in Otari's
   `cors_allow_origins`. It can also run local models through Ollama, with no provider key.
 

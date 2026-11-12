@@ -1,11 +1,27 @@
 # Browser runtime
 
 This folder runs the agent network in the visitor's browser. Copy it into each
-agentified site unchanged.
+agentified site, and do not change it there.
 
-It is the [nsdeploy](https://github.com/cognizant-ai-lab/nsdeploy) browser runtime
-(Apache 2.0, see `LICENSE.txt`) at nsdeploy commit `23df164` (2026-11-10), with edits
-that let agents call a site's own functions. nsdeploy's runtime cannot do that yet.
+It is a copy of the [nsdeploy](https://github.com/cognizant-ai-lab/nsdeploy) browser
+runtime (Apache 2.0, see `LICENSE.txt`) at nsdeploy commit `23df164` (2026-11-10), with
+the edits listed below.
+
+Why it is edited. A site's page has its own functions, called actions, like a room
+search. nsdeploy's runtime does not let an agent use them as tools. The agent can only
+offer a button or form. The visitor must click it and, by default, confirm the action.
+The agent cannot answer until the visitor writes again.
+
+Without editing the runtime, a site can plug in its own confirmation dialog, but not
+tools that run the page's functions: the runtime builds the tool list in its own code. So
+the runtime is edited. nsdeploy has no issue or pull request for this, so the edits live
+here.
+
+With the edits, each action the site's settings file (`agent-manifest.json`) lists under
+`agentTools` becomes a `website_<name>` tool. Look-ups and undoable changes, such as
+filling in the booking form, run without asking. Only actions the site marks
+`irreversible`, like a booking, wait for the visitor to confirm. The AI model cannot
+change these marks.
 
 Edited files. Each one has a line near its top saying that it was changed:
 
@@ -23,6 +39,9 @@ Edited files. Each one has a line near its top saying that it was changed:
   stray Enter cannot confirm an action. Closing the dialog puts focus back where it was.
 - `index.js` tells visitors that only actions that cannot be undone ask first, when the
   site offers `website_*` tools.
+- `llm.js` sends Anthropic's browser opt-in header,
+  `anthropic-dangerous-direct-browser-access: true`, when the router is
+  `api.anthropic.com`. nsdeploy's runtime sends it too since nsdeploy commit `53a787c`.
 
 Protocol name: `nsdeploy`. Use it for `<protocol_name>` in `agent-manifest.json`. It
 names the discovery files, such as `.well-known/nsdeploy.json`, that nsdeploy's tools read.

@@ -41,8 +41,7 @@ Things to know for every provider:
 ## OpenAI
 
 - This is nsdeploy's default `--upstream`, so it can be left out when you build the bundle.
-- OpenAI allows browser calls, so static bundles work. The
-  [Quickstart](../quickstart.md#manually-generate-a-website-bundle) uses it.
+- OpenAI allows browser calls, so static bundles work.
 - Model IDs look like `gpt-4.1-mini`. The model check uses OpenAI's model list.
 - Some newer OpenAI models limit tool calls on Chat Completions. Check OpenAI's docs
   before you pick a model.
@@ -63,8 +62,8 @@ Things to know for every provider:
 - **Newer sites only.** Anthropic allows browser calls only when the request carries the
   header `anthropic-dangerous-direct-browser-access: true`. Sites generated with
   `nsdeploy` since November 11, 2026 send it, so the browser can call Anthropic with no
-  router or gateway in between. Older sites don't send it, and neither do the examples in
-  this repo. Generate an older site again to get it.
+  router or gateway in between. The examples in this repo send it too. Older sites don't,
+  so generate an older site again to get it.
 - **Your organization must allow it.** Some Anthropic organizations refuse browser calls.
   The chat then shows
   `LLM HTTP 401: ... CORS requests are not allowed for this Organization because of its settings`.
