@@ -764,6 +764,25 @@ class AgentifiedSiteTest {
       assert.ok(instructions.includes("never show its forms"));
       assert.ok(instructions.includes("always give its link from website_"));
       assert.ok(instructions.includes("is empty or starts with \"The user declined\", \"Skipped\" or \"Error from\", it did not answer: say so."));
+      // A partner's main network cannot use its own site's tools, so ask it only what it
+      // can answer. A facts partner's answer carries a date, and nobody adds up its prices.
+      assert.ok(instructions.includes("so ask only what it can answer, such as what it offers and how to book"));
+      assert.ok(instructions.includes("pass on its facts with their date"));
+      assert.ok(instructions.includes("never add up its prices"));
+      assert.ok(instructions.includes("Facts come only from tool results and from this conversation."), "Copy the template's first grounding line: it lets the agent pass on a partner's facts.");
+      // A facts network cannot see this chat, so the line that names it gives the dates.
+      for (const ref of front.tools || []) {
+        if (typeof ref === "string" && /(^|\/)facts\/[A-Za-z0-9_]+_facts$/.test(new URL(ref).pathname)) {
+          const name = new URL(ref).pathname.split("/").pop();
+          let asks = false;
+          for (const line of instructions.split("\n")) {
+            if (line.includes(name) && line.includes("with exact dates")) {
+              asks = true;
+            }
+          }
+          assert.ok(asks, `The line that names ${name} does not ask it "with exact dates".`);
+        }
+      }
     }
     assert.ok(instructions.includes("This site cannot take payment online, change a booking, send confirmation emails, sell gift cards, book tours or arrange airport pickup."));
     assert.ok(instructions.includes("In the turn you call website_cancel_booking, first call website_look_up_booking and wait for its result"));

@@ -1,0 +1,29 @@
+{
+  "brand": "Marrow Point Harbor Tours",
+  "networks": [
+    {
+      "name": "marrow_point_harbor_tours_facts",
+      "front_man": "facts_assistant",
+      "hocon": "./marrow_point_harbor_tours_facts.network.json",
+      "description": "Dated public facts about Marrow Point Harbor Tours for other agent sites.",
+      "tags": [
+        "agentified-website",
+        "public-facts"
+      ]
+    }
+  ],
+  "llm_router": {
+    "base_url": "https://api.otari.ai/api/v1",
+    "mock": false,
+    "byok_router": "https://api.otari.ai/api/v1"
+  },
+  "allowed_peers": [],
+  "peer_policy": {
+    "mode": "closed",
+    "deny_origins": [],
+    "note": "Calls no other site."
+  },
+  "deployment": {
+    "mode": "static"
+  }
+}

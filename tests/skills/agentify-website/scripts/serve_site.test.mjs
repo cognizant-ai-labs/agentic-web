@@ -430,6 +430,170 @@ class ServeSiteTest {
       });
     }
   }
+
+  /**
+   * The facts export, as templates/agent-manifest.json writes it.
+   */
+  static FACTS_EXPORT = {
+    network: "desk_facts",
+    front_man: "facts_assistant",
+    aliases: [
+      "desk_facts",
+    ],
+    url: "facts/desk_facts",
+  };
+
+  /**
+   * Write a temp site with a facts folder, and start the server on it.
+   *
+   * :param exports: The root manifest's linking.exports list.
+   * :param factsHocon: The network file the facts folder's manifest names.
+   * :return: The temp site and the started server, as serveSite gives them.
+   */
+  static async serveFactsSite(exports, factsHocon) {
+    const site = await ServeSiteTest.makeSite();
+    const manifest = structuredClone(ServeSiteTest.MANIFEST);
+    manifest.linking.exports = exports;
+    await writeFile(path.join(site.site, "agent-manifest.json"), JSON.stringify(manifest, null, 2));
+    const factsManifest = {
+      networks: [
+        {
+          name: "desk_facts",
+          front_man: "facts_assistant",
+          hocon: factsHocon,
+          tags: [
+            "public-facts",
+          ],
+        },
+      ],
+      allowed_peers: [],
+    };
+    const files = {
+      "agent-facts.mjs": "export class AgentFacts {}",
+      "facts/agent-manifest.json": JSON.stringify(factsManifest, null, 2),
+      "facts/desk_facts.network.json": "{}",
+      "facts/links.json": "{}",
+      "facts/notes.txt": "not public",
+      "up/agent-manifest.json": "{}",
+    };
+    for (const [name, text] of Object.entries(files)) {
+      const file = path.join(site.site, name);
+      await mkdir(path.dirname(file), { recursive: true });
+      await writeFile(file, text);
+    }
+    const server = await ServeSiteTest.startServer([site.site, "--port", "0"]);
+    return {
+      site: site,
+      server: server,
+    };
+  }
+
+  /**
+   * Give the CORS header one path gets, or null.
+   *
+   * :param server: The started server.
+   * :param urlPath: The path.
+   * :return: The Access-Control-Allow-Origin value, or null.
+   */
+  static async cors(server, urlPath) {
+    const response = await ServeSiteTest.get(server, urlPath, {
+      Origin: "http://localhost:8081",
+    });
+    return response.headers.get("access-control-allow-origin");
+  }
+
+  /**
+   * A facts export makes its folder's manifest, links.json and network file public, and
+   * nothing else in that folder, nor agent-facts.mjs.
+   */
+  static async testFactsFilesGetCors() {
+    let served = null;
+    try {
+      served = await ServeSiteTest.serveFactsSite([ServeSiteTest.FACTS_EXPORT], "./desk_facts.network.json");
+      for (const urlPath of ["/facts/agent-manifest.json", "/facts/desk_facts.network.json", "/facts/links.json"]) {
+        assert.equal(await ServeSiteTest.cors(served.server, urlPath), "*", urlPath);
+      }
+      for (const urlPath of ["/agent-facts.mjs", "/facts/notes.txt", "/up/agent-manifest.json", "/bridge/agent-manifest.json"]) {
+        assert.equal(await ServeSiteTest.cors(served.server, urlPath), null, urlPath);
+      }
+    } finally {
+      await ServeSiteTest.cleanUp(served);
+    }
+  }
+
+  /**
+   * Export URLs at the root, on another host, absolute on this host, or with dot segments
+   * add no folder. A facts manifest that names "../index.html" does not make it public.
+   */
+  static async testOddExportsAddNothing() {
+    const exports = [
+      {
+        url: "desk",
+      },
+      {
+        url: "https://other.example/up/x",
+      },
+      {
+        url: "/up/x",
+      },
+      {
+        url: "../up/x",
+      },
+      {
+        url: "facts/../up/x",
+      },
+      {
+        url: "facts/desk_facts",
+      },
+    ];
+    let served = null;
+    try {
+      served = await ServeSiteTest.serveFactsSite(exports, "../index.html");
+      assert.equal(await ServeSiteTest.cors(served.server, "/up/agent-manifest.json"), null);
+      assert.equal(await ServeSiteTest.cors(served.server, "/index.html"), null);
+      assert.equal(await ServeSiteTest.cors(served.server, "/facts/agent-manifest.json"), "*");
+      assert.equal(await ServeSiteTest.cors(served.server, "/facts/desk_facts.network.json"), null);
+    } finally {
+      await ServeSiteTest.cleanUp(served);
+    }
+  }
+
+  /**
+   * A facts export added while the server runs is picked up on the next request.
+   */
+  static async testExportAddedWhileRunning() {
+    let served = null;
+    try {
+      served = await ServeSiteTest.serveFactsSite([], "./desk_facts.network.json");
+      assert.equal(await ServeSiteTest.cors(served.server, "/facts/desk_facts.network.json"), null);
+      const manifest = structuredClone(ServeSiteTest.MANIFEST);
+      manifest.linking.exports = [ServeSiteTest.FACTS_EXPORT];
+      await writeFile(path.join(served.site.site, "agent-manifest.json"), JSON.stringify(manifest, null, 2));
+      assert.equal(await ServeSiteTest.cors(served.server, "/facts/desk_facts.network.json"), "*");
+    } finally {
+      await ServeSiteTest.cleanUp(served);
+    }
+  }
+
+  /**
+   * The hosting guide's _headers block names the three facts files, and its Apache
+   * pattern matches the facts network file, so a host serves what the server serves.
+   */
+  static async testHostingGuideNamesTheFacts() {
+    const guide = await readFile(new URL("../../../../skills/agentify-website/references/bundle_and_hosting.md", import.meta.url), "utf8");
+    for (const line of ["/facts/agent-manifest.json", "/facts/<network>_facts.network.json", "/facts/links.json"]) {
+      assert.ok(guide.includes(`${line}\n  Access-Control-Allow-Origin: *`), `The _headers block lacks ${line}.`);
+    }
+    const match = /<FilesMatch "([^"]+)">/.exec(guide);
+    assert.ok(match, "The guide has no Apache FilesMatch line.");
+    const pattern = new RegExp(match[1].replaceAll("<network>", "desk").replaceAll("<protocol_name>", "nsdeploy"));
+    for (const file of ["agent-manifest.json", "desk.network.json", "desk_facts.network.json", "links.json"]) {
+      assert.ok(pattern.test(file), file);
+    }
+    for (const file of ["agent-facts.mjs", "index.html", "action-bridge.html", "sandbox-worker.js"]) {
+      assert.ok(!pattern.test(file), file);
+    }
+  }
 }
 
 test("only the public files get the CORS header", ServeSiteTest.testCorsOnPublicFilesOnly);
@@ -439,3 +603,7 @@ test("paths outside the site folder are refused", ServeSiteTest.testPathOutsideF
 test("files get the right content types", ServeSiteTest.testContentTypes);
 test("the log holds no header values", ServeSiteTest.testLogHoldsNoHeaderValues);
 test("--open-as changes only the printed URL", ServeSiteTest.testOpenAsChangesOnlyTheUrl);
+test("a facts export's three files get the CORS header, and nothing else new", ServeSiteTest.testFactsFilesGetCors);
+test("odd export URLs and a ../ network file add nothing", ServeSiteTest.testOddExportsAddNothing);
+test("a facts export added while the server runs is picked up", ServeSiteTest.testExportAddedWhileRunning);
+test("the hosting guide names the facts files the server serves", ServeSiteTest.testHostingGuideNamesTheFacts);

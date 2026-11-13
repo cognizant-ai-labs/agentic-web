@@ -65,9 +65,12 @@ front agent cannot tell from their descriptions which one to call.
 
 - No `demo_mode`, and no instruction to "make up a realistic response". `build_network.mjs`
   fails the build when it finds either.
-- Facts come from `website_*` tool results and from the conversation only. Do not copy
-  catalog facts (prices, ingredients, "the Garden Veggie is gluten free") into
-  instructions: they drift from the site's code. Let the agent read them.
+- Facts come from tool results (this site's `website_*` tools and partners' answers) and
+  from the conversation only. Do not copy catalog facts (prices, ingredients, "the Garden
+  Veggie is gluten free") into instructions: they drift from the site's code. Let the
+  agent read them. Facts for other agent sites go in `agent-facts.mjs` and the marked page
+  parts, which the build turns into the facts network ("Facts for callers" in
+  `linking.md`). Never put them in this network's instructions.
 - Facts that appear only in the page's HTML (sizes, fees, hours, policies) also go
   through the read action. See "Expose page-only facts" in `site_actions.md`.
 - Do not paste the page state into every prompt. The agent calls the read action when it
@@ -86,11 +89,13 @@ string must not contain another `{placeholder}`.
 
 Keep each agent's expanded instructions under about 5,000 characters (`build_network.mjs`
 warns above that). In the front agent, the template's `{grounding_rules}` without its
-TODO line, `{cruse_rules}`, `{peer_rules}` and `{partner_rules}` already use about 3,500
+TODO line, `{cruse_rules}`, `{peer_rules}` and `{partner_rules}` already use about 3,550
 of them, or about 2,850 without `{partner_rules}`. Everything else shares the rest,
 about 1,450 or 2,150: the first sentence, the list of what the site cannot do, and every
 "How to work" line. The template's own words in those lines count: about 250 in the
-irreversible action's line. The runtime appends about 2,000 more: CRUSE guidance
+irreversible action's line. A "How to work" line for a partner's facts URL, with the
+template's full ask, costs about 40 to 60 more characters than one for its main URL. The
+runtime appends about 2,000 more: CRUSE guidance
 (`runtime/cruse.js`, `agentPresentationContext`) and a note on `website_*` tools
 (`runtime/runner.js`, `runAgent`). Do not repeat that guidance; the template's
 `{cruse_rules}` adds the component shapes and two short rules.
@@ -160,9 +165,12 @@ Put four to six in `metadata.sample_queries`, and copy them to the manifest.
 `build_network.mjs --manifest` fails when the two lists differ. Write them from the
 inventory: questions the data answers, a state change, an operation that ends in
 confirmation, and one request the site cannot do, to show the agent declining honestly.
-Never list features the site does not have. A query for a partner site asks only what
-the partner can answer from here, such as "Is there a good place to eat nearby?", not
-free tables or prices ("Site tools" in `linking.md`). The generated pizza network in the
+Never list features the site does not have. A query for a partner's main URL asks only
+what the partner can answer from here, such as "Is there a good place to eat nearby?",
+not free tables or prices ("Site tools" in `linking.md`). A query for a partner's facts
+URL may ask what its facts answer, such as "Does the café nearby take dogs, and what does
+lunch cost on a Saturday?". Never free tables, rooms or places left. The generated pizza
+network in the
 agentic-web repository (`examples/pizza_restaurant_website_assistant.hocon`) asks to
 "apply code FAMILY20" and about "order #48219", which are examples of this mistake.
 

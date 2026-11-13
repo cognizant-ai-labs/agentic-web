@@ -41,24 +41,36 @@ partners, each after its own card (`runtime/engine.js`, `_assertAllowedPeer`).
   but never answers leaves the visitor's chat waiting until they reload the page. Calls
   nest at most 5 deep, counting the visitor's site (`runtime/remote.js`,
   `RemoteRegistry`).
-- **Calls back.** A partner is not offered a call back to the site that called it
-  (`runtime/runner.js`, `buildToolTable`) when that site is at a domain root and the
-  visitor opened it under the host name the partner's URL names. Otherwise the visitor
-  may see a card for the site they are on. Under a subpath, allowing it only skips the
-  call. Under another host name, such as `www.` and the bare domain, allowing it runs
-  this site's network once more, with no site tools, on the visitor's key. Redirect
-  other host names to the one partners name.
+- **Calls back.** The runtime drops a call back to the site that called it
+  (`runtime/runner.js`, `buildToolTable`) only when the partner names that site's own
+  network URL, with the site at a domain root and opened under the host name that URL
+  names. Any other URL into the calling site is offered: its facts network, another
+  network in its folder, the same network under a subpath, a bound link slot, or another
+  host name. If the partner calls it, the visitor sees a card for the site they are on,
+  or no card when both sites share an origin. Under a subpath, and for a bound link slot,
+  allowing it only skips the call. Under another host name, such as `www.` and the bare
+  domain, allowing it runs this site's network once more, with no site tools, on the
+  visitor's key. A call into this site's facts network, or another network in its
+  folder, also runs once more on the visitor's key, and a name the folder does not have
+  fails. A facts network has no tools, so call a partner's facts URL when it has one.
+  Redirect other host names to the one partners name.
 - **Site tools.** Neither side gets the other's site tools: the runtime offers
   `website_*` tools only on the visitor's own site (`runtime/runner.js`,
-  `buildToolTable`). So a partner cannot list what it has, such as its rooms or menu, or
-  give live availability, prices or bookings: it says what kinds of things it offers and
-  that its page has the details. This site's own note about the partner may already say
-  more. If a partner's bridge shares actions, its answer can still hold a button for one.
+  `buildToolTable`). So a partner's main network cannot list what it has, such as its
+  rooms or menu, or give live availability, prices or bookings: it says what kinds of
+  things it offers and that its page has the details. A partner that publishes a facts
+  network answers from its dated public facts instead, such as its rooms or menu, with
+  prices, times, rules and contact details ("Facts for callers"). No partner can give
+  live availability or book: that stays on its own page. This site's own note about the
+  partner may already say more. If a partner's bridge shares actions, its answer can still hold a button for one.
   `site.js` then shows the runtime's dialog, which names the partner's host, even when
   the action has the name of one of this site's.
 - **Cost.** The card's token estimate counts only the request, so a call costs more than
-  the card says (`runtime/runner.js`, `dispatchToolCall`). In a test, one partner call
-  used about 2,500 tokens.
+  the card says (`runtime/runner.js`, `dispatchToolCall`). A call to a partner's facts
+  network is one model call with no tool definitions: its instructions plus the request,
+  and `check_partner.mjs` prints its size. In a test, a call to the guesthouse example's
+  facts network sent about 1,500 tokens, and a call to its main network about 2,100
+  tokens and loaded a bridge frame.
 
 ## Let other sites call this site
 
@@ -76,14 +88,72 @@ Do this for every site.
    network has no `website_*` tools, and the rule makes it point to this site's page
    instead of guessing. The runtime then adds a note after it that says "Report missing
    integration explicitly" (`runtime/actions.js`, `actionContext`), so the rule says to
-   ignore that. A caller learns little more than the front agent's first sentence, so
-   name the kinds of things the site offers there (see "Writing instructions" in
-   `network_design.md`).
+   ignore that. A caller of this site's main network learns little more than the front
+   agent's first sentence, so name the kinds of things the site offers there (see
+   "Writing instructions" in `network_design.md`).
 3. **Host it.** Serve the files that "Static hosting" in `bundle_and_hosting.md` lists,
-   with the headers it gives, the `bridge/` rules included; locally, `serve_site.mjs`
-   does this. Use HTTPS in production (spec sections 3.2 and 3.3).
+   with the headers it gives, the `bridge/` and `facts/` rules included; locally,
+   `serve_site.mjs` does this. Use HTTPS in production (spec sections 3.2 and 3.3).
 4. **Pick the model.** Give the network a small, widely available model. Callers on stock
    nsdeploy runtimes run this network on that model when their visitor picked none.
+5. **Publish facts for callers.** Write `agent-facts.mjs` and mark the page parts it
+   quotes ("Facts for callers"). The build writes `facts/`.
+
+## Facts for callers
+
+Called on another site, this site's main network has none of its site tools, so it can
+only say what the site offers. So the build also writes a second, small network for other
+agent sites: `facts/<network>_facts`, with one agent, no tools and no bridge. Its
+instructions hold this site's public facts, with the date they last changed. A caller
+names that URL, and one model call answers from the facts. This site's own page never
+loads it, so its own model calls do not grow (`scripts/facts_network.mjs`).
+
+1. **What goes in.** Only facts that are the same for every visitor: what the site
+   offers, prices, times, rules and contact details. They come from two places in
+   `agent-facts.mjs`, which you write from `templates/agent-facts.mjs`:
+   - `PAGES` lists the pages whose marked parts the build quotes, word for word. Mark each
+     part on its page with `data-agent-facts="<topic>"`, such as
+     `<section id="pets" data-agent-facts="pets">`. A marked part holds only paragraphs,
+     headings, lists, tables, links and emphasis. It carries no class or style, sits in no
+     form, template, `noscript`, `details` or hidden element, and its topic is used once.
+     The build refuses anything else and says why (`scripts/marked_text.mjs`). When the
+     text sits in styled markup, mark a plain wrapper around it, or give the fact in
+     `dataFacts()` instead.
+   - `dataFacts()` returns topics of lines from the site's own page-free describers, such
+     as a room or product list in the words its cards use ("Expose page-only facts" in
+     `site_actions.md`). Import only site files that load without a page: never the page
+     script, and no `node:` modules, `process`, `fetch` or file reads. The build runs the
+     module in a separate Node process with no environment variables.
+   - Never publish anything about one person or booking, anything a visitor wrote, live
+     data such as free rooms, text a visitor cannot see, form labels and hints, keys or
+     internal notes, words aimed at another model, or totals for one party. The full list
+     is in `templates/agent-facts.mjs`. A booking step stated as a policy is fine, such as
+     "choose After 9 pm as your arrival time when you book".
+2. **The date.** "As of" is the day the facts last changed. A rebuild with no change keeps
+   it, so `--check` passes on any later day. Set `CHECKED_ON` to the day you last checked
+   the facts, and the date moves forward without a change. The facts network tells callers
+   that facts for dates more than a year after "as of" may have changed. Nothing expires.
+   So if the owner raises a price on the page and uploads it without a rebuild, callers
+   still read the old price, with its old date, until the next rebuild.
+3. **Hosting.** Keep the facts export in `linking.exports` (`templates/agent-manifest.json`).
+   Serve the three files in `facts/` with CORS, as "Static hosting" in
+   `bundle_and_hosting.md` says; under a subpath, add it to each path. Keep the network
+   file in `facts/` next to its manifest: the checker fails a facts URL whose file is on
+   another origin. When you remove the facts network, delete `facts/` and the export too.
+   If the site already has a `facts/` folder of its own, ask the user: the build stops
+   rather than write there.
+4. **Keep it true.** Rebuild after any change to the data or a marked part. Run the build
+   with `--check` before you upload: it fails when `facts/` is out of date. Run
+   `tests/facts.test.mjs`, from `templates/tests/facts.test.mjs`, which checks what the
+   facts say and that they hold nobody's details. After you upload, run
+   `check_partner.mjs` on this site's facts URL with no `--origin`: it reads the live
+   pages and data again and fails when they no longer match the facts.
+5. **What the partner's host sees.** The three GETs, from the visitor's browser and
+   address. Each carries the calling site's origin as `Origin` and, under the default
+   referrer policy, as `Referer`. It never sees the request or a cookie.
+6. **What can still go wrong.** The runtime sets no timeout on the three GETs, so a facts
+   host that accepts the connection but never answers leaves the visitor's chat waiting
+   until they reload, as any partner does ("Limits per visitor message" above).
 
 ## Call a partner site
 
@@ -105,6 +175,8 @@ Do this only when the user names a partner site that publishes an agent network.
 
    - If it reports an error, a call to that partner would fail: tell the user instead of
      adding it.
+   - If the check says the partner publishes a facts network, use its facts URL in the
+     steps below, and name only that URL: a facts network cannot call back into this site.
    - If the partner is not up yet, such as a site you are building at the same time, ask
      the user before you add it: the build checks only this site's side. Run the check
      again once the partner is up.
@@ -137,7 +209,14 @@ Do this only when the user names a partner site that publishes an agent network.
    for a URL. Leave `linking.imports` empty: nsdeploy lists link slots there.
 3. **Tell the agent.** Add a "How to work" line that names the tool and says when to call
    it and what to ask. The build and `check_partner.mjs` print the tool name, such as
-   `partner_network` for `https://partner.example/partner_network`. Keep the template's
+   `partner_network` for `https://partner.example/partner_network`. A facts URL's tool
+   name starts with `facts_`, such as `facts_partner_network_facts` for
+   `https://partner.example/facts/partner_network_facts`. Under a folder, the name also
+   carries the folder (step 1) and can be cut at 60 characters: copy it from the build's
+   "Partner tools:" line. For a facts URL, the line asks with exact dates, and with what
+   the partner's prices depend on, such as weekdays, party size and children's ages, as
+   the template's TODO line shows. The build warns when it does not ask with exact dates.
+   Keep the template's
    `partner_rules` string and its `{partner_rules}` line after the "How to work" lines; a
    site built before linking copies both from `templates/network.hocon`. In
    `partner_rules`, replace `website_<read_action>` with the read action whose result has
@@ -145,15 +224,20 @@ Do this only when the user names a partner site that publishes an agent network.
    to the partner's own page, add one and read its `href` in the read action ("Expose
    page-only facts" in `site_actions.md`): the agent has no other link to give, and the
    network URL is not a page.
-4. **What goes in a request.** One or two short sentences. Ask only what the partner can
-   answer from its instructions, such as what it offers and how to book. Keep it under
-   140 characters: the visitor sees only that much on the card. Never names, emails,
-   phone numbers or booking codes.
+4. **What goes in a request.** One or two short sentences. Ask a main URL only what the
+   partner can answer from its instructions, such as what it offers and how to book. Give
+   a facts URL exact dates, and what its prices and rules depend on, such as the weekdays,
+   the party size and children's ages. Take weekdays from this site's own read when it
+   gives them. Keep it under 140 characters: the visitor sees only that much on the card.
+   Never names, emails, phone numbers or booking codes.
 5. **What to promise visitors.** In `GREETING`, the assistant section and the sample
-   queries, promise only what a partner can answer from here, such as "I can ask
-   <partner> what it offers" or "Is there a good place to eat nearby?". Do not promise
-   anything behind its site tools, such as which rooms or dishes it has, free places or
-   prices: write "what it offers", not "what rooms it has".
+   queries, promise only what a partner can answer from here. For a main URL, that is what
+   it offers, such as "I can ask <partner> what it offers" or "Is there a good place to
+   eat nearby?". Do not promise anything behind its site tools, such as which rooms or
+   dishes it has, free places or prices: write "what it offers", not "what rooms it has".
+   For a facts URL, you may promise what its site publishes, with its date, such as its
+   rooms or dishes, prices, times and rules. Never promise any partner's free rooms,
+   places left or bookings.
 6. **What comes back.** `{partner_rules}` tells the agent how to read it:
 
    | The tool result, or its `text`, starts with | It means |
@@ -173,16 +257,19 @@ Do this only when the user names a partner site that publishes an agent network.
 7. **Content-Security-Policy.** If this site sends a Content-Security-Policy, allow each
    partner's origin in `connect-src` and `frame-src`.
 8. **The README.** Add a short "Linked site" section:
-   - the partner's network URL, and for a partner served on this machine, the command
-     that serves it on the other host name, and why (see "Two linked sites" below);
+   - the partner's network URL (its facts URL, when it has one), and for a partner served
+     on this machine, the command that serves it on the other host name, and why (see "Two
+     linked sites" below);
    - what the consent card shows, and that **Always allow** skips the card for every
      partner on that host until the page is reloaded;
    - what a request contains, and that the assistant is told never to put names, emails,
      phone numbers or booking codes in it, though the runtime does not filter it, so the
      visitor checks it on the card;
    - that the partner's network runs in this browser on the visitor's key, with none of
-     the partner's site tools, so it cannot give live availability or prices, and that a
-     call costs more than the card's token estimate.
+     the partner's site tools, and that a call costs more than the card's token estimate.
+     A main URL cannot give live availability or prices. A facts URL answers from the
+     partner's dated public facts, such as prices and rules, but not availability or
+     bookings.
 9. **Rebuild and check.** Run the build without `--check`, which writes the network file,
    then the checks in "Check it".
 
@@ -195,7 +282,12 @@ Do this only when the user names a partner site that publishes an agent network.
   instructions lack `{peer_rules}` or `{partner_rules}` or never name a partner tool,
   when either rule differs from `templates/network.hocon`, and on link slots or an open
   peer policy. For a partner on `localhost` or `127.0.0.1`, it prints what to replace
-  before hosting.
+  before hosting. With `agent-facts.mjs`, it also writes `facts/`, and fails on a `TODO`
+  left in `agent-facts.mjs`, on hidden or unclear page parts, on facts that differ from
+  the pages and data (with `--check`), on old facts files in `facts/`, and on a `facts/`
+  folder of the site's own. It warns when a facts URL's line does not ask with exact
+  dates, when an agent that calls a partner lacks the template's first grounding line,
+  and when an agent names both a partner's main URL and its facts URL.
 - **The Node tests.** The template's tests check that:
   - the front agent keeps the peer and partner rules;
   - a partner's action never gets this page's dialog, and neither does a chat form
@@ -214,7 +306,9 @@ Do this only when the user names a partner site that publishes an agent network.
   site names this one yet, use the URL the server printed, then the network name, such
   as `http://127.0.0.1:8080/<network>`. It loads this site's public files and its bridge
   the way any other site does, and prints the lines a calling site adds. With this
-  site's own origin, the CORS check would be skipped.
+  site's own origin, the CORS check would be skipped. If this site publishes facts, run
+  it on `<base>/facts/<network>_facts` too, and again after each upload: with no
+  `--origin`, it also checks that the live pages and data still match the facts.
 - **Two linked sites.** To try two linked sites on one machine, open them under different
   host names: serve one with `--open-as 127.0.0.1` and the other with
   `--open-as localhost`. On one host name, the runtime's key cookie reaches the other
@@ -289,3 +383,26 @@ Do this only when the user names a partner site that publishes an agent network.
    site's README, change the run command to match and add `bridge/` to the file list.
 
 To have the site call a partner too, follow "Call a partner site".
+
+## Update a site built before facts
+
+1. Copy `partner_rules` and the first grounding line from `templates/network.hocon`. The
+   build warns "partner_rules differs" until they match, and warns about the old
+   grounding line once a partner is called.
+2. For each partner, run `check_partner.mjs` on its main URL. When it says the partner
+   publishes a facts network, put the facts URL in `tools` and `link_labels` in place of
+   the main URL, and change the "How to work" line to the new tool name, asking with exact
+   dates ("Call a partner site", steps 1, 3 and 4). Check the instruction count the build
+   prints: the facts line is about 40 to 60 characters longer.
+3. Write `agent-facts.mjs` from `templates/agent-facts.mjs`, mark the page parts it quotes
+   ("Facts for callers"), and add the facts export to `linking.exports` in
+   `agent-manifest.json`, from `templates/agent-manifest.json`. Show the user the marked
+   parts and the `dataFacts()` lines, and ask them to confirm what is published.
+4. Add the `facts/` lines from "Static hosting" in `bundle_and_hosting.md` to the host's
+   headers; under a subpath, add it to each path.
+5. Copy `templates/tests/facts.test.mjs` into the site's `tests/` and fill it in, and copy
+   the new rule checks in `testNetworkIsValid` from `templates/tests/agentified.test.mjs`.
+6. Rebuild, run the build with `--check` and the tests, serve the site and run
+   `check_partner.mjs` on its facts URL with no `--origin` ("Check it").
+7. In the README, change the "Linked site" section as step 8 of "Call a partner site"
+   says, and add the facts URL as "The README" in `bundle_and_hosting.md` says.

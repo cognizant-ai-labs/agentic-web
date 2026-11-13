@@ -1,0 +1,80 @@
+{
+  "brand": "Seaside Desk Assistant",
+  "networks": [
+    {
+      "name": "seaside_desk",
+      "front_man": "seaside_assistant",
+      "hocon": "./seaside_desk.network.json",
+      "description": "Ask about opening hours, and about boat trips from Harbor Tours.",
+      "tags": [
+        "agentified-website"
+      ],
+      "sample_queries": [
+        "When are you open on Sunday?",
+        "Are there boat trips on Saturday morning?"
+      ]
+    }
+  ],
+  "llm_router": {
+    "base_url": "https://api.openai.com/v1",
+    "mock": false,
+    "byok_router": "https://api.openai.com/v1"
+  },
+  "allowed_peers": [
+    "https://tours.example"
+  ],
+  "peer_policy": {
+    "mode": "closed",
+    "deny_origins": [],
+    "note": "Calls only the partner sites in allowed_peers, after the visitor agrees."
+  },
+  "agent_mcp": {
+    "protocol": "nsdeploy-agent-mcp/v1",
+    "network": "seaside_desk",
+    "front_man": "seaside_assistant",
+    "available": false,
+    "reason": "This is a static bundle; a public MCP facade requires an application host."
+  },
+  "linking": {
+    "protocol": "nsdeploy-link/v1",
+    "exports": [
+      {
+        "network": "seaside_desk",
+        "front_man": "seaside_assistant",
+        "aliases": [
+          "seaside_desk",
+          "seaside_assistant"
+        ],
+        "url": "seaside_desk"
+      },
+      {
+        "network": "seaside_desk_facts",
+        "front_man": "facts_assistant",
+        "aliases": [
+          "seaside_desk_facts"
+        ],
+        "url": "facts/seaside_desk_facts"
+      }
+    ],
+    "imports": [],
+    "link_updates": {
+      "mode": "browser-local"
+    }
+  },
+  "deployment": {
+    "mode": "static",
+    "self_contained_runtime": true,
+    "browser_mock": false,
+    "direct_byok": true,
+    "direct_mcp_requires_cors": true,
+    "public_mcp_facade": false
+  },
+  "actions": {
+    "version": 1,
+    "module": "./site-actions.js",
+    "bridge": "./bridge/action-bridge.html",
+    "agentTools": [
+      "get_desk_state"
+    ]
+  }
+}

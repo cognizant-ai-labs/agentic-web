@@ -11,11 +11,15 @@
 // .well-known/<protocol_name>.json and .well-known/<protocol_name>-agent.json.
 // When the manifest has actions, it also writes the action bridge that other agent
 // sites load: bridge/action-bridge.html and bridge/agent-manifest.json.
+// When the site has agent-facts.mjs next to its manifest, it also writes the facts network
+// that other agent sites call: facts/<network>_facts.network.json, with its own
+// agent-manifest.json and links.json. --today sets the day new facts are dated (tests).
 // It exits with code 1 when it finds errors.
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { FactsNetwork } from "./facts_network.mjs";
 
 /**
  * Builds the published network JSON for an agentified website and checks it.
@@ -42,6 +46,18 @@ class NetworkBuilder {
    * A phrase from the template's partner_rules, looked for in the expanded instructions.
    */
   static PARTNER_RULES = "Partner tools ask another site's assistant";
+
+  /**
+   * A partner facts network's path: <site>/facts/<network>_facts, maybe under a subpath.
+   */
+  static FACTS_PATH = /(^|\/)facts\/[A-Za-z0-9_]+_facts$/;
+
+  /**
+   * What the "How to work" line for a facts partner must say. A facts network cannot see
+   * this chat, and its prices and rules depend on the dates. The template also suggests
+   * weekdays, party size and children's ages, but not every partner's prices depend on them.
+   */
+  static FACTS_ASK = "with exact dates";
 
   /**
    * The template whose peer and partner rules every site keeps unchanged.
@@ -74,6 +90,13 @@ class NetworkBuilder {
     // with them, exactly as the browser does.
     this.runtime = null;
     this.network = null;
+    // The facts network for callers: undefined before the manifest is read, null when the
+    // site has no agent-facts.mjs. factsFiles holds its output paths.
+    this.facts = undefined;
+    this.factsFiles = new Set();
+    // True when other agent sites can call this site: its front agent has the peer rules
+    // or its manifest exports a network.
+    this.callable = false;
   }
 
   /**
@@ -92,12 +115,21 @@ class NetworkBuilder {
       check: false,
       // The runtime appends about 2,000 more characters of CRUSE and tool context.
       maxInstructions: 5000,
+      // The day the facts network's date comes from when its facts change. Tests set it.
+      today: FactsNetwork.today(),
     };
     let index = 0;
     while (index < argv.length) {
       const arg = argv[index];
       if (arg === "--check") {
         options.check = true;
+      } else if (arg === "--today") {
+        const value = argv[index + 1];
+        if (!FactsNetwork.isDate(value)) {
+          throw new Error("--today needs a date such as 2026-11-12.");
+        }
+        options.today = value;
+        index += 1;
       } else if (arg === "--out" || arg === "--manifest" || arg === "--runtime" || arg === "--max-instructions") {
         const value = argv[index + 1];
         if (value === undefined) {
@@ -121,7 +153,7 @@ class NetworkBuilder {
       index += 1;
     }
     if (options.hocon === null) {
-      throw new Error("Usage: node build_network.mjs <network>.hocon [--manifest FILE] [--runtime DIR] [--out FILE] [--check]");
+      throw new Error("Usage: node build_network.mjs <network>.hocon [--manifest FILE] [--runtime DIR] [--out FILE] [--check] [--today YYYY-MM-DD]");
     }
     const siteDir = path.dirname(options.hocon);
     const networkName = path.basename(options.hocon).replace(/\.hocon$/, "");
@@ -209,6 +241,7 @@ class NetworkBuilder {
     if (manifest !== null) {
       this.addDiscoveryFiles(manifest);
       await this.addBridgeFiles();
+      await this.addFactsFiles(manifest, config, network.config, frontMan);
     }
     if (this.options.check) {
       await this.compareOutputs();
@@ -764,6 +797,102 @@ class NetworkBuilder {
   }
 
   /**
+   * Add the facts network that other agent sites call, when the site has agent-facts.mjs.
+   * Its own page never loads it, so the site's network file does not change.
+   *
+   * :param manifest: The parsed agent-manifest.json.
+   * :param raw: The parsed .hocon, before placeholders are expanded.
+   * :param resolved: The network after the runtime applied commondefs and defaults.
+   * :param frontMan: The front agent name, or null.
+   */
+  async addFactsFiles(manifest, raw, resolved, frontMan) {
+    const siteDir = path.dirname(this.options.manifest);
+    const file = await FactsNetwork.moduleIn(siteDir);
+    const exported = FactsNetwork.exportEntry(manifest, this.options.networkName);
+    const front = frontMan === null ? null : this.network.getAgentSpec(frontMan);
+    const instructions = front && typeof front.instructions === "string" ? front.instructions : "";
+    const exports = Array.isArray((manifest.linking || {}).exports) ? manifest.linking.exports : [];
+    this.callable = instructions.includes(NetworkBuilder.PEER_RULES) || exports.length > 0;
+    // Facts files in the outputs, so --check can say what makes them stale.
+    this.factsFiles = new Set();
+    this.facts = null;
+    if (file === null) {
+      if (exported !== null) {
+        this.errors.push(`Manifest: linking.exports names ${exported.url}, but the site has no ${FactsNetwork.MODULE}. Write it from templates/agent-facts.mjs, or delete that entry.`);
+      }
+      await this.checkLeftoverFacts(siteDir, `Delete those files, or add ${FactsNetwork.MODULE} and its linking.exports entry.`, false);
+      return;
+    }
+    const strings = (raw.commondefs || {}).replacement_strings || {};
+    const facts = new FactsNetwork({
+      siteDir: siteDir,
+      networkName: this.options.networkName,
+      siteName: String(strings.site_name || ""),
+      model: String((((front || {}).llm_config) || {}).model_name || ((resolved.llm_config || {}).model_name) || ""),
+      manifest: manifest,
+      runtime: this.runtime,
+      today: this.options.today,
+    });
+    await facts.build(file);
+    for (const message of facts.errors) {
+      this.errors.push(message);
+    }
+    for (const message of facts.warnings) {
+      this.warnings.push(message);
+    }
+    for (const [output, text] of facts.outputs) {
+      this.outputs.set(output, text);
+      this.factsFiles.add(output);
+    }
+    this.facts = facts;
+    // A failed facts build writes nothing, so every file would look left over.
+    if (!facts.errors.length) {
+      await this.checkLeftoverFacts(siteDir, "Delete them.", true);
+    }
+  }
+
+  /**
+   * Fail on files in facts/ that this build does not write. Callers can still fetch an old
+   * facts network there, and it would keep answering with old facts. A folder that no facts
+   * build wrote is the site's own: it fails only when the site wants a facts network there.
+   *
+   * :param siteDir: The folder that holds the manifest.
+   * :param fix: What the error about old facts files tells the site to do.
+   * :param wantsFacts: True when the site has agent-facts.mjs.
+   */
+  async checkLeftoverFacts(siteDir, fix, wantsFacts) {
+    const folder = path.join(siteDir, FactsNetwork.FOLDER);
+    let names = [];
+    try {
+      names = await readdir(folder);
+    } catch (error) {
+      return;
+    }
+    // No facts build wrote there, so every file in it is the site's own.
+    const built = await FactsNetwork.holdsFactsNetwork(folder, names);
+    const own = [];
+    const stale = [];
+    for (const name of names.sort()) {
+      if (this.factsFiles.has(path.join(folder, name))) {
+        continue;
+      }
+      const looksBuilt = name === "agent-manifest.json" || name === "links.json" || name.endsWith("_facts.network.json");
+      if (built && looksBuilt) {
+        stale.push(`${FactsNetwork.FOLDER}/${name}`);
+      } else {
+        own.push(`${FactsNetwork.FOLDER}/${name}`);
+      }
+    }
+    // Never tell the agent to delete the site's own files.
+    if (own.length && wantsFacts) {
+      this.errors.push(`${FactsNetwork.FOLDER}/ already holds this site's own files: ${own.join(", ")}. The facts network needs that folder, so the build writes nothing. Ask the user what to do, and do not move or delete those files without asking.`);
+    }
+    if (stale.length) {
+      this.errors.push(`${FactsNetwork.FOLDER}/ holds files this build does not write: ${stale.join(", ")}. Callers can still fetch them. ${fix}`);
+    }
+  }
+
+  /**
    * Compare website_* names in instructions with the manifest's agentTools list.
    *
    * :param manifest: The parsed agent-manifest.json.
@@ -878,6 +1007,14 @@ class NetworkBuilder {
       if (!callsPartner && hasRules) {
         this.warnings.push(`${name}: instructions include {partner_rules}, but the agent calls no partner site. Delete them and the partner_rules string.`);
       }
+      // The template's first grounding line lets the agent pass on a partner's facts.
+      const grounding = this.templateRules && typeof this.templateRules.grounding_rules === "string" ? this.templateRules.grounding_rules.trim().split("\n")[0] : "";
+      if (callsPartner && grounding && !instructions.includes(grounding)) {
+        this.warnings.push(`${name}: calls a partner, but its instructions lack "${grounding}". Copy the template's first grounding line.`);
+      }
+      for (const message of NetworkBuilder.bothUrls(name, tools)) {
+        this.warnings.push(message);
+      }
     }
     if (Object.keys(resolved.link_slots || {}).length) {
       this.warnings.push("link_slots makes the chat ask the visitor for a URL and allows that origin for the whole page. Name the partner's full URL in tools instead.");
@@ -894,6 +1031,32 @@ class NetworkBuilder {
         this.warnings.push(`Manifest: allowed_peers lists ${origin}, but no agent calls a network or MCP server there.`);
       }
     }
+  }
+
+  /**
+   * Warn when one agent names both a partner's main URL and its facts URL. The model may
+   * then call both, with a card for each, and the main network's run can call back into
+   * this site. A facts network has no tools, so it cannot.
+   *
+   * :param agentName: The agent.
+   * :param tools: The agent's tools list.
+   * :return: The warnings.
+   */
+  static bothUrls(agentName, tools) {
+    const warnings = [];
+    const urls = new Set();
+    for (const ref of tools) {
+      if (typeof ref === "string" && /^https?:\/\//i.test(ref)) {
+        urls.add(ref);
+      }
+    }
+    for (const ref of urls) {
+      const match = /^(.*)\/facts\/([A-Za-z0-9_]+)_facts$/.exec(ref);
+      if (match !== null && urls.has(`${match[1]}/${match[2]}`)) {
+        warnings.push(`${agentName} names both ${match[1]}/${match[2]} and its facts network ${ref}. Name only the facts URL: a facts network has no tools, so it cannot call back into this site.`);
+      }
+    }
+    return warnings;
   }
 
   /**
@@ -949,8 +1112,20 @@ class NetworkBuilder {
       this.errors.push(`${agentName}: partner ${ref} has no link_labels entry, so the consent card would call it "${toolName}". Add "${ref}": "<partner name>" under link_labels.`);
     }
     // Tool names hold only letters, digits and "_", so they need no escaping here.
-    if (!new RegExp(`(^|[^A-Za-z0-9_])${toolName}($|[^A-Za-z0-9_])`).test(instructions)) {
+    const namesTool = new RegExp(`(^|[^A-Za-z0-9_])${toolName}($|[^A-Za-z0-9_])`);
+    if (!namesTool.test(instructions)) {
       this.warnings.push(`${agentName}: instructions do not say when to call ${toolName}, the tool for ${ref}.`);
+    } else if (NetworkBuilder.FACTS_PATH.test(url.pathname)) {
+      // A facts network cannot see this chat, and its prices and rules depend on the dates.
+      let asks = false;
+      for (const line of instructions.split("\n")) {
+        if (namesTool.test(line) && line.includes(NetworkBuilder.FACTS_ASK)) {
+          asks = true;
+        }
+      }
+      if (!asks) {
+        this.warnings.push(`${agentName}: the line that names ${toolName} does not ask it "${NetworkBuilder.FACTS_ASK}". Copy that from the template's partner TODO line.`);
+      }
     }
     let known = false;
     for (const partner of this.partners) {
@@ -1037,7 +1212,9 @@ class NetworkBuilder {
         this.errors.push(`${file} does not exist. Run without --check to create it.`);
         continue;
       }
-      if (current !== text) {
+      if (current !== text && this.factsFiles.has(file)) {
+        this.errors.push(`${file} is out of date with ${FactsNetwork.MODULE} or the pages and data it reads. Run without --check.`);
+      } else if (current !== text) {
         this.errors.push(`${file} is out of date with the HOCON or the manifest. Run without --check.`);
       }
     }
@@ -1081,6 +1258,12 @@ class NetworkBuilder {
       }
       if (this.writesBridge) {
         console.log("Bridge: bridge/action-bridge.html (shares no actions)");
+      }
+      if (this.facts && this.facts.asOf) {
+        console.log(`Facts network: ${FactsNetwork.urlPath(this.options.networkName)} (one agent, no tools, no bridge): ${this.facts.instructionChars} instruction chars, ${this.facts.lineCount} fact lines, as of ${this.facts.asOf}`);
+      } else if (this.facts === null && this.callable) {
+        // A note, not a warning: a site may have nothing public to say beyond its page.
+        console.log(`No facts network: callers get only what the front agent's first sentence says. Add ${FactsNetwork.MODULE} to give them dated public facts.`);
       }
       for (const partner of this.partners) {
         console.log(`Partner tools: ${partner.toolName} -> ${partner.ref} ("${partner.label}")`);

@@ -53,6 +53,14 @@
           "tidewhistle_assistant"
         ],
         "url": "tidewhistle_guesthouse"
+      },
+      {
+        "network": "tidewhistle_guesthouse_facts",
+        "front_man": "facts_assistant",
+        "aliases": [
+          "tidewhistle_guesthouse_facts"
+        ],
+        "url": "facts/tidewhistle_guesthouse_facts"
       }
     ],
     "imports": [],

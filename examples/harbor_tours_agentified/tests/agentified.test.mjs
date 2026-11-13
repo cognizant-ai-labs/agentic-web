@@ -230,6 +230,25 @@ class AgentifiedSiteTest {
       assert.ok(instructions.includes("never show its forms"));
       assert.ok(instructions.includes("always give its link from website_"));
       assert.ok(instructions.includes("is empty or starts with \"The user declined\", \"Skipped\" or \"Error from\", it did not answer: say so."));
+      // A partner's main network cannot use its own site's tools, so ask it only what it
+      // can answer. A facts partner's answer carries a date, and nobody adds up its prices.
+      assert.ok(instructions.includes("so ask only what it can answer, such as what it offers and how to book"));
+      assert.ok(instructions.includes("pass on its facts with their date"));
+      assert.ok(instructions.includes("never add up its prices"));
+      assert.ok(instructions.includes("Facts come only from tool results and from this conversation."), "Copy the template's first grounding line: it lets the agent pass on a partner's facts.");
+      // A facts network cannot see this chat, so the line that names it gives the dates.
+      for (const ref of front.tools || []) {
+        if (typeof ref === "string" && /(^|\/)facts\/[A-Za-z0-9_]+_facts$/.test(new URL(ref).pathname)) {
+          const name = new URL(ref).pathname.split("/").pop();
+          let asks = false;
+          for (const line of instructions.split("\n")) {
+            if (line.includes(name) && line.includes("with exact dates")) {
+              asks = true;
+            }
+          }
+          assert.ok(asks, `The line that names ${name} does not ask it "with exact dates".`);
+        }
+      }
     }
     // What the site cannot do, and the rule that reads the basket version again.
     assert.ok(instructions.includes("This site cannot take payment online, change a reservation, cancel one trip of several"));
@@ -237,7 +256,7 @@ class AgentifiedSiteTest {
     assert.ok(instructions.includes("In the turn you call website_reserve_basket, first call website_get_tours_state and wait for its result"));
     // The site cannot check a child's age against a trip's age limit, so the agent does.
     assert.ok(instructions.includes("The site does not check children's ages"));
-    assert.ok(instructions.includes("ask tidewhistle_guesthouse what it offers and how to book."));
+    assert.ok(instructions.includes("ask facts_tidewhistle_guesthouse_facts with exact dates and weekdays, party size and children's ages."));
   }
 
   /**
@@ -306,7 +325,7 @@ class AgentifiedSiteTest {
     const ctx = SiteHarness.context(loaded, registry, model, SiteHarness.approve);
     const result = await runAgent(ctx, ctx.frontMan, "What can I get here?", null, []);
     assert.ok(model.toolNames(0).includes(`website_${READ_ACTION}`));
-    assert.ok(model.toolNames(0).includes("tidewhistle_guesthouse"));
+    assert.ok(model.toolNames(0).includes("facts_tidewhistle_guesthouse_facts"));
     assert.equal(model.toolResults(1)[0].status, "succeeded");
     assert.match(result.text, /found/);
     // Every model call sends the system prompt (the instructions and the runtime's

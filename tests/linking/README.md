@@ -9,9 +9,15 @@ the key goes only to the visitor's router. They use a scripted router and the fa
 
 | Direction | Calling site | Partner network |
 | --- | --- | --- |
-| `caller-to-gh` | the test caller, `http://localhost:8082/` | `http://127.0.0.1:8080/tidewhistle_guesthouse` |
-| `gh-to-tours` | the guesthouse, `http://127.0.0.1:8080/` | `http://localhost:8081/marrow_point_harbor_tours`: the real tour site when `examples/harbor_tours_agentified` exists, else the test partner |
-| `tours-to-gh` | the real tour site, `http://localhost:8081/` | `http://127.0.0.1:8080/tidewhistle_guesthouse` |
+| `caller-to-gh` | the test caller, `http://localhost:8082/` | the guesthouse's facts network, `http://127.0.0.1:8080/facts/tidewhistle_guesthouse_facts` |
+| `caller-to-gh-main` | the test caller, served naming the guesthouse's main network in place of its facts network | `http://127.0.0.1:8080/tidewhistle_guesthouse` |
+| `gh-to-tours` | the guesthouse, `http://127.0.0.1:8080/` | `http://localhost:8081/facts/marrow_point_harbor_tours_facts`: the real tour site when `examples/harbor_tours_agentified` exists, else the test partner |
+| `tours-to-gh` | the real tour site, `http://localhost:8081/` | `http://127.0.0.1:8080/facts/tidewhistle_guesthouse_facts` |
+
+Each site names its partner's facts network: one agent with no tools and no bridge, whose
+instructions hold the partner's dated public facts (`skills/agentify-website/references/linking.md`,
+"Facts for callers"). `caller-to-gh-main` keeps the main network's bridge and peer rule
+covered, for callers that still name a main URL.
 
 The two examples use two host names on purpose. On loopback hosts the runtime copies
 saved keys into a cookie for the host name, on every port (`runtime/byok.js`), so a
@@ -20,8 +26,9 @@ partner on the same host name would get the key with its bridge requests. C7 sho
 `tours-to-gh` and the tour site's L8 skip, with the reason, until there is a real tour
 site: `examples/harbor_tours_agentified`, or the folder that `LINKING_TOURS` or `--tours`
 names. A skip is not a pass. A direction whose sites are not linked fails, with the
-reason: a site has no manifest, the partner has no `actions.bridge`, or the calling site
-does not name the partner's URL in `tools`.
+reason: a site has no manifest, the partner has no `actions.bridge` or, for a facts
+direction, no `facts/` folder, or the calling site does not name the partner's URL in
+`tools`.
 
 ## Node tests
 
@@ -37,15 +44,16 @@ node --test "tests/**/*.test.mjs"
 
 | Case | Checks |
 | --- | --- |
-| L1, L4 | With no visitor model: one card with the partner's label (each of its words is in the partner's brand), host and the whole request, and nothing sent to the partner before the answer. Then its manifest, network file and `links.json`, and a frame for `bridge/action-bridge.html` with sandbox `allow-scripts allow-same-origin`. The partner runs on the calling site's model, with the key, on the router. No site gets the key or an `Authorization` header. The partner's first request has only a system and a user message, the `remote_call` trace has empty `sly_data`, and the partner's prompt holds the peer rule and the runtime's "No browser actions" note. The answer reaches the calling site. L4 is L1 from the tour site. When both sites name the same model, the test serves the partner's network naming another model, so it still shows that the calling site chose the partner's model. |
+| L1, L4 | With no visitor model: one card with the partner's label (each of its words is in the partner's brand), host and the whole request, and nothing sent to the partner before the answer. For a facts network, then exactly its three files (`facts/agent-manifest.json`, its network file and `facts/links.json`) and no frame; the partner makes one model call with no tools, its prompt holds the dated facts and neither the peer rule nor the runtime's "No browser actions" note. For a main network, its manifest, network file and `links.json`, and a frame for `bridge/action-bridge.html` with sandbox `allow-scripts allow-same-origin`, and its prompt holds the peer rule and the no-actions note. The partner runs on the calling site's model, with the key, on the router. No site gets the key or an `Authorization` header. The partner's first request has only a system and a user message, the `remote_call` trace has empty `sly_data`, and the answer reaches the calling site. L4 is L1 from the tour site. When both sites name the same model, the test serves the partner's network naming another model, so it still shows that the calling site chose the partner's model. |
 | L2 | A model the visitor picked is used by both sites. |
 | L3 | A decline sends nothing at all to the partner. |
-| L5 | The partner is not offered a call back to the calling site, so there is one card. When the partner does not call the calling site, the test adds that call to the served copy of its network. |
+| L5 | A facts network is offered no tools, so it cannot call back. A main network (`caller-to-gh-main`) is not offered a call back to the calling site, so there is one card; when it does not call the calling site, the test adds that call to the served copy of its network. |
 | L6 | A second call to the same partner in one message is skipped, and the partner runs once. |
 | L7 | With the partner's origin missing from the calling site's `allowed_peers`, the call is refused and nothing goes to the partner. |
-| L8 | Each example keeps `runtime/` byte for byte as the skill's, keeps the template's `peer_rules` and `partner_rules` (with its read action filled in), and builds with `--check` with no warning. The test sites get the same checks, without the runtime one. |
+| L8 | Each example keeps `runtime/` byte for byte as the skill's, keeps the template's `peer_rules`, `partner_rules` (with its read action filled in) and first grounding line, has `agent-facts.mjs` and exports its facts network, and builds with `--check` with no warning, `facts/` included. The test sites get the same checks, without the runtime and facts ones. |
 | L9 | A partner network that fails validation gives an "Error from tool" result and makes no model call. |
-| L10 | A second hop: the test caller, served so that it names the tour site, calls the tour site, whose network calls the guesthouse. Each hop shows its own card before any contact, every model call runs on the test caller's model with the key, and no site gets the key. With the tour site's `allowed_peers` served empty, the second hop is refused by the tour site's own policy and the guesthouse is never contacted. |
+| L10 | A second hop: the test caller, served so that it names the tour site's main network, calls the tour site, whose network calls the guesthouse. A facts network has no tools, so a second hop needs a main network. Each hop shows its own card before any contact, every model call runs on the test caller's model with the key, and no site gets the key. With the tour site's `allowed_peers` served empty, the second hop is refused by the tour site's own policy and the guesthouse is never contacted. |
+| L11 | Each example's own page never fetches `facts/`, and its own model calls hold no facts block. |
 
 The calling site's own `actions` are left out of its served manifest, because Node cannot
 import its action module over HTTP. Each site's own tests cover its actions.
@@ -83,13 +91,14 @@ node tests/linking/chrome/run_linking_check.mjs [--chrome <path>]
 
 | Case | Checks |
 | --- | --- |
-| C1 | Visitor model set, Allow. The partner ran, and answered under 5 s after consent. One card, with the label, the partner's host and the whole request. The frame loaded the partner's `bridge/action-bridge.html` with sandbox `allow-scripts allow-same-origin`. The partner served only its manifest, network file, `links.json`, `bridge/` and `runtime/` files. No "Continue at" dialog. Only router requests carry the key, besides the runtime's cookie on the calling site's own host, and no partner request has `Authorization` or the `nsweb_byok_profiles_v1` cookie. Every chat request went to the router, on the visitor's model. The partner was offered no `website_*` tool. A note gives the calling page's action note after the call: the runtime shows the partner bridge's "No actions exposed" there, which is on the upstream list. |
+| C1 | Visitor model set, Allow, on the partner's facts URL. The partner ran, and answered under 5 s after consent. One card, with the label, the partner's host and the whole request. No frame loaded, and the partner served only its three facts files, each read across origins, so with the CORS header. The facts network made one model call, and its dated answer reached the caller. No "Continue at" dialog. Only router requests carry the key, besides the runtime's cookie on the calling site's own host, and no partner request has `Authorization` or the `nsweb_byok_profiles_v1` cookie. Every chat request went to the router, on the visitor's model. The partner was offered no `website_*` tool. A note gives the calling page's action note after the call: the runtime shows the partner bridge's "No actions exposed" there, which is on the upstream list. |
 | C2 | C1 with no visitor model: every chat request uses the calling site's front-agent model. When both sites name the same model, the check serves a copy of the partner whose network names another model, then serves the partner itself again, and a note says so. |
 | C3 | Decline: no request at all reaches the partner's host. |
 | C4 | C1 from the tour site to the guesthouse. It runs only with the real tour site. |
 | C5 | Each site's own page, with no key: the keyless read check returns `succeeded`, and the status line shows "N website actions connected". |
 | C6 | Each bridge page opened directly reads "Open this page through an agent action.", loads none of the site's own files, and logs no error. Chrome's own `/favicon.ico` request is not counted. |
 | C7 | `--same-host`, for information: the calling page opened under the partner's host name. It reports whether the key cookie reached the partner's host. |
+| C9 | The test caller, served naming the guesthouse's main network, calls it with the visitor's model. The frame loaded the guesthouse's `bridge/action-bridge.html` with sandbox `allow-scripts allow-same-origin`, the guesthouse served only its manifest, network file, `links.json`, `bridge/` and `runtime/` files, and its prompt held the peer rule and the no-actions note. It runs when the test caller and the guesthouse both run. |
 | C8 | `--no-bridge`, for information, for the first direction that runs: the partner served without its bridge. It reports the 10-second wait and the "Continue at" dialog. For another direction, pass it with `--direction`. |
 
 Exit codes: 0 when every case that ran passed; 1 when one failed, a direction's sites are
@@ -100,7 +109,8 @@ the run.
 The router (`chrome/mock_router.mjs`) works for any skill-built network. A request whose
 last user message is the scripted request comes from the partner: it answers
 `PARTNER_ANSWER:` with whether its prompt holds the peer rule and the runtime's "No browser
-actions" note. Only for L10, it first calls its own partner tool once with a second
+actions" note, and, for a facts network, `Facts as of <date>.` with the date its facts
+give. Only for L10, it first calls its own partner tool once with a second
 request, and that partner answers `NESTED_ANSWER:`. Any other request comes from
 the calling site: it calls the tool whose description starts with "Hand off to the", then
 answers `CALLER_FINAL:` with the partner's text. It records the model, whether the key was
@@ -121,12 +131,13 @@ sent, the origin, the tool names and the message roles, never the key.
 with fixed data, a manifest with `actions.bridge`, and the template's rules.
 
 - `caller_site`: Marrow Point Visitor Desk, network `marrow_point_visitor_desk`, served at
-  `http://localhost:8082/`. It calls the guesthouse. Its model, `gpt-4.1-nano`, is not the
-  guesthouse's, so a test can tell which site chose the model.
+  `http://localhost:8082/`. It calls the guesthouse's facts network. Its model,
+  `gpt-4.1-nano`, is not the guesthouse's, so a test can tell which site chose the model.
 - `partner_site`: Marrow Point Harbor Tours, network `marrow_point_harbor_tours`, served at
   `http://localhost:8081/` when `examples/harbor_tours_agentified` is missing. Its
-  model is `gpt-4o-mini`. It calls the guesthouse back, as the real tour site does, so L5
-  checks the call-back rule on a real network.
+  model is `gpt-4o-mini`. It publishes a small facts network from one marked part of
+  `index.html`, and it calls the guesthouse's main network on purpose, so L10 has a
+  second hop on a main network.
 
 They hold no copy of the runtime. The Chrome check serves a copy of each, with the skill's
 `runtime/` added, from its output folder. To serve one by hand, copy it somewhere outside

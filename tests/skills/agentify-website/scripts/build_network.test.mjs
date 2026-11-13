@@ -780,6 +780,101 @@ class BuildNetworkTest {
       }
     }
   }
+
+  /**
+   * A site that other sites can call but that has no agent-facts.mjs gets a note, not a
+   * warning: a site may have nothing public to say beyond its page.
+   */
+  static async testNoFactsNote() {
+    const folder = await BuildNetworkTest.copyFixture();
+    try {
+      const built = BuildNetworkTest.build(folder, []);
+      assert.equal(built.code, 0, built.out);
+      assert.deepEqual(BuildNetworkTest.findings(built.out), []);
+      assert.ok(built.out.includes("No facts network: callers get only what the front agent's first sentence says. Add agent-facts.mjs to give them dated public facts."), built.out);
+    } finally {
+      await BuildNetworkTest.remove(folder);
+    }
+  }
+
+  /**
+   * --today needs a real date.
+   */
+  static async testTodayMustBeADate() {
+    const folder = await BuildNetworkTest.copyFixture();
+    try {
+      const built = BuildNetworkTest.build(folder, ["--today", "2026-13-01"]);
+      assert.equal(built.code, 2, built.out);
+      assert.ok(built.out.includes("--today needs a date such as 2026-11-12."), built.out);
+    } finally {
+      await BuildNetworkTest.remove(folder);
+    }
+  }
+
+  /**
+   * An agent that calls a partner with the old first grounding line warns: that line
+   * allowed facts only from website_* results, not from a partner's answer.
+   */
+  static async testOldGroundingLineWarns() {
+    const folder = await BuildNetworkTest.copyFixture();
+    try {
+      await BuildNetworkTest.editHocon(folder, "Facts come only from tool results and from this conversation.", "Facts come only from website_* tool results and from this conversation.");
+      const built = BuildNetworkTest.build(folder, []);
+      assert.equal(built.code, 0, built.out);
+      assert.deepEqual(BuildNetworkTest.findings(built.out), [
+        "WARNING: seaside_assistant: calls a partner, but its instructions lack \"Facts come only from tool results and from this conversation.\". Copy the template's first grounding line.",
+      ]);
+    } finally {
+      await BuildNetworkTest.remove(folder);
+    }
+  }
+
+  /**
+   * The line that names a partner's facts tool asks "with exact dates". Without them it
+   * warns; dates without weekdays, party size or ages are enough.
+   */
+  static async testFactsLineAsks() {
+    const facts = "https://tours.example/facts/harbor_tours_facts";
+    const lines = [
+      ["- For boat trips, call facts_harbor_tours_facts.", true],
+      ["- For boat trips, call facts_harbor_tours_facts with exact dates.", false],
+    ];
+    for (const [line, warns] of lines) {
+      const folder = await BuildNetworkTest.copyFixture();
+      try {
+        await BuildNetworkTest.editHocon(folder, BuildNetworkTest.PARTNER, facts);
+        await BuildNetworkTest.editHocon(folder, "- For boat trips, call harbor_tours.", line);
+        const built = BuildNetworkTest.build(folder, []);
+        assert.equal(built.code, 0, built.out);
+        const expected = warns ? [`WARNING: seaside_assistant: the line that names facts_harbor_tours_facts does not ask it "with exact dates". Copy that from the template's partner TODO line.`] : [];
+        assert.deepEqual(BuildNetworkTest.findings(built.out), expected, line);
+        assert.ok(built.out.includes(`Partner tools: facts_harbor_tours_facts -> ${facts} ("Harbor Tours")`), built.out);
+      } finally {
+        await BuildNetworkTest.remove(folder);
+      }
+    }
+  }
+
+  /**
+   * An agent that names both a partner's main URL and its facts URL warns: the facts
+   * network cannot call back into this site, the main network can.
+   */
+  static async testBothUrlsWarn() {
+    const folder = await BuildNetworkTest.copyFixture();
+    try {
+      const facts = "https://tours.example/facts/harbor_tours_facts";
+      await BuildNetworkTest.editHocon(folder, "\"tools\": [\"https://tours.example/harbor_tours\"]", `"tools": ["https://tours.example/harbor_tours", "${facts}"]`);
+      await BuildNetworkTest.editHocon(folder, "\"https://tours.example/harbor_tours\": \"Harbor Tours\"", `"https://tours.example/harbor_tours": "Harbor Tours",\n        "${facts}": "Harbor Tours"`);
+      await BuildNetworkTest.editHocon(folder, "- For boat trips, call harbor_tours.", "- For boat trips, call harbor_tours, or facts_harbor_tours_facts with exact dates.");
+      const built = BuildNetworkTest.build(folder, []);
+      assert.equal(built.code, 0, built.out);
+      assert.deepEqual(BuildNetworkTest.findings(built.out), [
+        `WARNING: seaside_assistant names both https://tours.example/harbor_tours and its facts network ${facts}. Name only the facts URL: a facts network has no tools, so it cannot call back into this site.`,
+      ]);
+    } finally {
+      await BuildNetworkTest.remove(folder);
+    }
+  }
 }
 
 test("the clean fixture builds with no findings and passes --check", BuildNetworkTest.testCleanSite);
@@ -810,3 +905,8 @@ test("a partner listed twice is an error", BuildNetworkTest.testDoubledPartnerIs
 test("a partner named like the agent's own tool is an error, in either order", BuildNetworkTest.testPartnerNamedLikeOwnAgentIsAnError);
 test("a read action with a hyphen fills the partner rule with no warning", BuildNetworkTest.testHyphenatedReadAction);
 test("the instruction budget is 5,000 characters", BuildNetworkTest.testInstructionBudget);
+test("a callable site with no agent-facts.mjs gets a note, not a warning", BuildNetworkTest.testNoFactsNote);
+test("--today needs a real date", BuildNetworkTest.testTodayMustBeADate);
+test("the old first grounding line warns in a partner caller", BuildNetworkTest.testOldGroundingLineWarns);
+test("a facts partner's line must ask with exact dates", BuildNetworkTest.testFactsLineAsks);
+test("naming both a partner's main URL and its facts URL warns", BuildNetworkTest.testBothUrlsWarn);

@@ -1,0 +1,29 @@
+{
+  "brand": "Tidewhistle Guesthouse",
+  "networks": [
+    {
+      "name": "tidewhistle_guesthouse_facts",
+      "front_man": "facts_assistant",
+      "hocon": "./tidewhistle_guesthouse_facts.network.json",
+      "description": "Dated public facts about Tidewhistle Guesthouse for other agent sites.",
+      "tags": [
+        "agentified-website",
+        "public-facts"
+      ]
+    }
+  ],
+  "llm_router": {
+    "base_url": "https://api.otari.ai/api/v1",
+    "mock": false,
+    "byok_router": "https://api.otari.ai/api/v1"
+  },
+  "allowed_peers": [],
+  "peer_policy": {
+    "mode": "closed",
+    "deny_origins": [],
+    "note": "Calls no other site."
+  },
+  "deployment": {
+    "mode": "static"
+  }
+}

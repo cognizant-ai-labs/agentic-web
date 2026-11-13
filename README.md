@@ -211,6 +211,11 @@ visitor agrees on a card. The partner's network then runs in the visitor's brows
 the visitor's own key. It gets none of the partner site's own functions, so it can say
 what that site offers and point to its page, but not give live availability or book.
 
+A skill-built site also publishes a facts network at `<site>/facts/<network>_facts`: one
+agent with no tools, whose instructions hold the site's dated public facts, such as its
+prices, times and rules. Other sites call that URL, and one model call answers from the
+facts.
+
 For a site agentified with the skill, follow
 [`references/linking.md`](skills/agentify-website/references/linking.md). The build
 writes the `bridge/` page that other agent sites load before they run your network, and

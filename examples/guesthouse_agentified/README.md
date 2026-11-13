@@ -61,10 +61,10 @@ data it reads to the LLM provider you choose.
 
 ## Linked site
 
-The assistant can ask the Marrow Point Harbor Tours assistant about boat trips,
-seal watching and sea-wall walks, at the network URL
-`http://localhost:8081/marrow_point_harbor_tours`. To try it, serve the tour site
-too, from the repository root in a second terminal:
+The assistant can ask the Marrow Point Harbor Tours facts network about boat
+trips, seal watching and sea-wall walks, at
+`http://localhost:8081/facts/marrow_point_harbor_tours_facts`. To try it, serve
+the tour site too, from the repository root in a second terminal:
 
 ```shell
 node skills/agentify-website/scripts/serve_site.mjs examples/harbor_tours_agentified --port 8081 --open-as localhost
@@ -78,19 +78,23 @@ tour site would get that cookie, key included.
 Then ask this site's assistant about a boat trip. Before anything is sent, a
 card shows the tour site's name, its host and the first 140 characters of the
 request, and asks you to agree. Treat the request as sent to the tour site: its
-assistant reads it. This site's rules tell the assistant to ask only what the
-tour site can answer, such as what it offers and how to book, and never to put
+assistant reads it. This site's rules tell the assistant to give the tour site
+exact dates with weekdays, the party size and children's ages, and never to put
 in names, emails, phone numbers or booking codes. The runtime does not filter
 the request, so check it on the card. **Always allow** skips the card, and that
 check, for the tour site until you reload the page. After you agree, the tour
-site's network runs in this browser, on your key and router, and costs more
-than the card's token estimate. It gets none of the tour site's own functions,
-so it should say what the tour site offers and point to its page for times and
-bookings. If you decline, nothing is sent to the tour site, and the assistant
+site's facts network runs in this browser, on your key and router, and costs
+more than the card's token estimate. It answers from the tour site's published
+facts, with their date: trips, times, prices and rules. It cannot see places
+left or book, so it points to the tour site's page for those. If you decline, nothing is sent to the tour site, and the assistant
 should say so and give the tour site's link from this page. It should do the
 same when the tour site is not running.
 
-Other agent sites can call this network at
+Other agent sites can call this site's facts network at
+`http://127.0.0.1:8080/facts/tidewhistle_guesthouse_facts`. It answers from
+the rooms, rates and house policies, with their date, and cannot see
+availability or bookings. It has no tools, so it cannot call back into the
+calling site. They can also call this network at
 `http://127.0.0.1:8080/tidewhistle_guesthouse`. It then runs in their
 visitor's browser with none of this site's functions, and should point to this
 page for availability and bookings. Their visitor also gets a card for the
@@ -107,9 +111,11 @@ node --test "examples/guesthouse_agentified/tests/*.test.mjs"
 The tests use the real runtime and page code with a scripted model, and call no
 LLM provider. One test prints how many characters of system prompt and tool
 definitions each model call sends. After changing
-`tidewhistle_guesthouse.hocon` or `agent-manifest.json`, rebuild the generated
-files with the skill's `scripts/build_network.mjs` (see the comment at the top
-of the `.hocon` file).
+`tidewhistle_guesthouse.hocon`, `agent-manifest.json`, `agent-facts.mjs`, the
+room data or a marked page part, rebuild the generated files with the skill's
+`scripts/build_network.mjs` (see the comment at the top of the `.hocon` file).
+`tests/facts.test.mjs` checks that the facts say what the data and pages say and
+hold no guest's details.
 
 In a browser, also look up `TW-7KQ2` / `Pell` and then `TW-7KQ2` / `Pel` in
 **Manage my booking**, and run the read check in "Check without a key" in the
@@ -146,6 +152,12 @@ skill's `references/bundle_and_hosting.md` for `get_guesthouse_state`:
 - `bridge/`: the page other agent sites load in a hidden frame before they run
   this network, with its own manifest, which shares none of this site's
   functions. The build writes it. Do not edit it by hand.
+- `agent-facts.mjs`: the public facts for other agent sites: the rooms from
+  `js/booking-facts.js`, and the page parts marked `data-agent-facts` in
+  `index.html` and `policies.html`.
+- `facts/`: the facts network other agent sites call, with its own manifest and
+  `links.json`. The build writes it from `agent-facts.mjs`. Do not edit it by
+  hand.
 - `agent-manifest.json` and `links.json`: the public files that describe the
   network.
 - `runtime/`: the browser runtime, copied unchanged from the skill.
