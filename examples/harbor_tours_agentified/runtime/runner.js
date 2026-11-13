@@ -13,6 +13,7 @@ import { ChatMessageType, filterSlyData, allowedDownstreamSly, parseExternalAgen
 import { actionContext, proposalRefs } from "./actions.js";
 import { parseAgentResponse, agentPresentationContext, normalizePresentation, consolidateIntakePresentations } from "./cruse.js";
 import { applyPendingSteering, runInterruptibleModelCall } from "./turn-control.js";
+import { assertModelForRouter, effectiveModel } from "./model.js";
 
 let invocationSequence = 0;
 
@@ -464,6 +465,11 @@ export async function dispatchToolCall(ctx, entry, args, parentSpan, chain) {
   return `Error: unsupported tool kind '${entry.kind}'`;
 }
 
+// The model one agent sends. effectiveModel keeps this in step with the settings panel.
+function agentModel(ctx, spec) {
+  return effectiveModel(ctx.modelOverride, spec?.llm_config?.model_name, ctx.network.config?.llm_config?.model_name);
+}
+
 // Dispatcher: the LangChain.js runner when enabled, else the dependency-free
 // reference loop. Either way neuro-san-web owns multi-agent orchestration.
 export async function runAgent(ctx, agentName, userText, parentSpan, chain) {
@@ -475,6 +481,11 @@ export async function runAgent(ctx, agentName, userText, parentSpan, chain) {
       reason: budgetReason, agentCalls: ctx.composition?.agentCalls,
     });
     return parseAgentResponse(`Skipped ${agentName}: ${budgetReason}. Continue with available results and do not retry it.`, source);
+  }
+  // Check here so both runners fail closed before tool discovery or a model call.
+  // Without a key, skip it: both runners report the missing key first.
+  if (ctx.apiKey && ctx.apiKey !== "demo") {
+    assertModelForRouter(agentModel(ctx, ctx.network.getAgentSpec(agentName)), ctx.mock, hostOfUrl(ctx.routerBaseUrl));
   }
   // Scope prompt context to this invocation. Never mutate a shared agent spec or
   // ctx: siblings and remote networks can be running concurrently.
@@ -536,7 +547,7 @@ export async function runAgentManual(ctx, agentName, userText, parentSpan, chain
     if (isTopFrontMan && ctx.history?.length) messages.push(...ctx.history);
     messages.push({ role: "user", content: userText });
 
-    const model = ctx.modelOverride || spec.llm_config?.model_name || network.config.llm_config?.model_name || ctx.defaultModel;
+    const model = agentModel(ctx, spec);
     // A partner context carries this site's step limit (engine.js _makeCtx), so a partner
     // network cannot raise it.
     const maxSteps = Math.min(spec.max_steps || network.config.max_steps || 12, ctx.maxSteps || Infinity);

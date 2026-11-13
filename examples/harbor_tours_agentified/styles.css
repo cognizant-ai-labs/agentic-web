@@ -123,8 +123,6 @@ footer { margin-top: 40px; color: #55625f; font-size: .875rem; border-top: 1px s
 /* Site label rules add margins and bold text, and the inputs inside the labels inherit
    the weight. */
 #agent-app .ns-settings-body label { margin: 4px 0; font-weight: 400; }
-/* A static site always runs the runtime's own loop, so the LangChain choice does nothing. */
-#agent-app .ns-settings-body label:has(#ns-lg) { display: none; }
 /* Chat forms label radio groups with a legend, so site legend fonts would reach them. */
 #agent-app .ns-w-label { font-family: inherit; }
 /* Site label rules add margins to chat form fields and make their options bold. */

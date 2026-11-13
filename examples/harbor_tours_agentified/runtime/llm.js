@@ -1,7 +1,7 @@
 // llm.js — the LlmClient intrinsic: an OpenAI-compatible chat-completions client.
-// Changed by agentic-web. See README.md in this folder for what changed.
 
-import { normalizeModelName } from "./model.js";
+import { assertModelForRouter, normalizeModelName } from "./model.js";
+import { ProviderError } from "./provider-error.js";
 
 function hostOf(url) {
   try { return new URL(url).host; } catch { return url || "?"; }
@@ -68,8 +68,9 @@ export class LlmClient {
     // happens e.g. when a shared/reloaded URL keeps the proxy router but no saved
     // BYOK profile/key is available in this browser.
     if (!this.mock && (!this.apiKey || this.apiKey === "demo")) {
-      throw new Error(`An LLM API key is required for ${hostOf(this.baseUrl) || "the configured provider"}. Open ⚙ BYOK / router settings, enter your key, then click Apply, save & reload. Your key stays in this browser and is sent only to the configured provider.`);
+      throw new Error(`An AI provider key is required for ${hostOf(this.baseUrl) || "the configured provider"}. Open ⚙ AI model settings, paste your key, then select Save and start. Your key stays in this browser and is sent only to the configured provider.`);
     }
+    assertModelForRouter(model, this.mock, hostOf(this.baseUrl));
     const span = this.trace?.start("model_call", {
       parent: parentSpan,
       origin,
@@ -115,7 +116,6 @@ export class LlmClient {
         "Content-Type": "application/json",
         ...(this.apiKey ? { Authorization: `Bearer ${this.apiKey}` } : {}),
       };
-      // Anthropic answers browser calls only when the request opts in with this header.
       if (hostOf(this.baseUrl) === "api.anthropic.com") {
         headers["anthropic-dangerous-direct-browser-access"] = "true";
       }
@@ -145,12 +145,13 @@ export class LlmClient {
       });
       return result;
     } catch (err) {
+      const friendlyError = ProviderError.friendly(err, this.baseUrl);
       if (err?.name === "AbortError" && signal?.aborted) {
         this.trace?.end(span, { status: "steered", interrupted: true });
       } else {
-        this.trace?.fail(span, err);
+        this.trace?.fail(span, friendlyError);
       }
-      throw err;
+      throw friendlyError;
     }
   }
 

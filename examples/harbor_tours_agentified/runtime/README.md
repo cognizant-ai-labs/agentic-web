@@ -4,7 +4,7 @@ This folder runs the agent network in the visitor's browser. Copy it into each
 agentified site, and do not change it there.
 
 It is a copy of the [nsdeploy](https://github.com/cognizant-ai-lab/nsdeploy) browser
-runtime (Apache 2.0, see `LICENSE.txt`) at nsdeploy commit `23df164` (2026-11-10), with
+runtime (Apache 2.0, see `LICENSE.txt`) at nsdeploy commit `53a787c` (2026-11-11), with
 the edits listed below.
 
 Why it is edited. A site's page has its own functions, called actions, like a room
@@ -49,9 +49,6 @@ Edited files. Each one has a line near its top saying that it was changed:
   stray Enter cannot confirm an action. Closing the dialog puts focus back where it was.
 - `index.js` tells visitors that only actions that cannot be undone ask first, when the
   site offers `website_*` tools.
-- `llm.js` sends Anthropic's browser opt-in header,
-  `anthropic-dangerous-direct-browser-access: true`, when the router is
-  `api.anthropic.com`. nsdeploy's runtime sends it too since nsdeploy commit `53a787c`.
 
 Protocol name: `nsdeploy`. Use it for `<protocol_name>` in `agent-manifest.json`. It
 names the discovery files, such as `.well-known/nsdeploy.json`, that nsdeploy's tools read.
