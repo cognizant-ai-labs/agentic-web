@@ -1,7 +1,7 @@
 # Little Oven Pizza with a browser assistant
 
 A copy of [Little Oven Pizza](../pizza_restaurant/) with the browser runtime,
-chat, BYOK settings and action review UI from the
+chat, AI model settings and action review UI from the
 [generated static bundle](../sites/pizza_restaurant_website_assistant_static/).
 The original menu, cart and manual checkout still work alongside the assistant.
 
@@ -16,12 +16,12 @@ python -m http.server 8080 --directory ./examples/pizza_restaurant_agentified
 Open http://127.0.0.1:8080/. Use HTTP rather than opening `index.html` as a file:
 the assistant loads ES modules and fetches its configuration.
 
-Scroll to **Ask Little Oven**, open **BYOK / router settings**, enter your
-[Otari](https://otari.ai) API key, and select **Apply, save & reload**. By default the
+Scroll to **Ask Little Oven**, open **⚙ AI model settings**, paste your
+[Otari](https://otari.ai) API key, and select **Save and start**. By default the
 assistant uses hosted Otari (`https://api.otari.ai/api/v1`) with the model
-`alibaba/qwen-3.5-35b-a3b`. To use another provider, also enter its model ID and
-OpenAI-compatible router base URL. The router must allow requests from the browser
-through CORS. The generated runtime manages saved provider settings in the browser;
+`alibaba/qwen-3.5-35b-a3b`. For another provider, select it in the panel, which fills
+in its provider URL and model, or enter both under **Advanced settings (optional)**.
+The provider must allow requests from the browser through CORS. The generated runtime manages saved provider settings in the browser;
 no key is included in the example source. Chat and restaurant context go to the provider you select.
 The assistant requires a configured provider; the manual website does not.
 
@@ -62,9 +62,10 @@ Copied unchanged from the generated bundle:
 
 Adapted from that bundle:
 
-- `runtime/`: the complete browser dependency tree, from the bundle as nsdeploy
-  `23df164` built it. The bundle has since been rebuilt with a newer nsdeploy, whose
-  settings panel has different labels. `runner.js` adds a small
+- `runtime/`: the complete browser dependency tree. It is the copy in
+  [`skills/agentify-website/runtime/`](../../skills/agentify-website/runtime/), which is
+  nsdeploy's runtime at `53a787c` with the edits that `runtime/README.md` lists, plus
+  this example's CRUSE fix. `runner.js` adds a small
   bridge from model tool calls to the site's action registry. Only local operations
   listed in `actions.agentTools` are exposed. They use the registry's schema
   validation and receipt handling. Calls execute sequentially. Irreversible
@@ -81,10 +82,7 @@ Adapted from that bundle:
   `cruse.js` accepts unfenced structured responses and combines compatible
   child intake forms when the coordinator does not provide its own composition.
   `ui.js` supports native time inputs and friendly enum labels, with accessible
-  fieldset groups for radio choices. `llm.js` sends Anthropic's browser opt-in header,
-  `anthropic-dangerous-direct-browser-access: true`, when the router is
-  `api.anthropic.com`, as nsdeploy's current runtime does. Other runtime files remain
-  unchanged.
+  fieldset groups for radio choices. `runtime/README.md` lists every changed file.
 - `agent-manifest.json`: restaurant branding, supported sample queries, local
   specialist links, the `actions.module` registration entry, and an explicit
   `actions.agentTools` list for state reads, cart changes and confirmed checkout.

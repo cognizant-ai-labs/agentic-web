@@ -1,3 +1,4 @@
+// Changed by agentic-web. See README.md in this folder for what changed.
 // CRUSE's wire contract. Proposals are returned to the caller, never published
 // directly to the user by a child agent. This module is shared by both runners.
 const object = (v) => !!v && typeof v === "object" && !Array.isArray(v);

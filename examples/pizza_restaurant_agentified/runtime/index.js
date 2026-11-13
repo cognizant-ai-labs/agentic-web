@@ -1,4 +1,5 @@
 // index.js — public entry point for the neuro-san-web runtime.
+// Changed by agentic-web. See README.md in this folder for what changed.
 //
 // A business's index.html imports `boot` and points it at its origin. boot loads
 // the origin's published network, compiles it, mounts the themeable UI, and is
@@ -39,7 +40,7 @@ export async function boot(rootSelector = "#app", opts = {}) {
   }
   if (ignoredParams.length) {
     const names = ignoredParams.join(", ");
-    console.warn(`Inference settings in the page URL are ignored (${names}). Set them in BYOK / router settings.`);
+    console.warn(`Inference settings in the page URL are ignored (${names}). Set them in AI model settings.`);
   }
   const savedProfile = getSelectedByokProfile();
   const tabSetup = loadTabByokSetup(savedProfile);
@@ -54,7 +55,8 @@ export async function boot(rootSelector = "#app", opts = {}) {
   });
   // Select the agent loop: ?runner=langchain drives the LLM via LangChain.js
   // (neuro-san-web owns the loop). 'langgraph' kept as an alias for older links.
-  const runnerChoice = opts.runner || params.get("runner") || (savedProfile?.runner ? "langchain" : "");
+  // A saved setup's runner flag is ignored, because the panel has no setting to turn it off.
+  const runnerChoice = opts.runner || params.get("runner") || "";
   const { manifest } = await engine.loadTop();
   if (manifest?.deployment?.mode !== "static"
       && (runnerChoice === "langchain" || runnerChoice === "langgraph")) {
@@ -67,11 +69,17 @@ export async function boot(rootSelector = "#app", opts = {}) {
     status.style.cssText = "flex:none;padding:8px 12px;font-size:12px;max-height:140px;overflow:auto";
     const summary = document.createElement("summary");
     const detail = document.createElement("p");
+    // website_* tools (runner.js) ask only before irreversible actions. Buttons and forms
+    // the visitor submits are always reviewed first.
+    const directTools = !!manifest?.actions?.agentTools?.length;
+    const reviewed = directTools
+      ? "You confirm actions that cannot be undone before they run. Other actions run right away."
+      : "Actions run after you review and confirm them. Server responses appear as receipts.";
     const update = () => {
       const count = engine.actions.catalog({ base: engine.top.base, network: engine.top.network.name }).length;
       summary.textContent = count ? `${count} website actions connected` : "No website actions connected";
       detail.textContent = engine.actions.discoveryIssues.map(i => `${i.page}: ${i.reason}`).join(" ") || (count
-        ? "Actions run after you review and confirm them. Server responses appear as receipts."
+        ? reviewed
         : "This agent can collect information, but no website operations are connected.");
     };
     engine.actions.onChange = update;

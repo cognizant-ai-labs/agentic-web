@@ -8,7 +8,7 @@ It requires the provider to allow browser calls (CORS).
 
 ## Which providers work
 
-| Provider | Router base URL | Example model | Direct from the browser (static bundle) |
+| Provider | Provider URL | Example model | Direct from the browser (static bundle) |
 |---|---|---|---|
 | [OpenAI](#openai) | `https://api.openai.com/v1` | `gpt-4.1-mini` | Works |
 | [OpenRouter](#openrouter) | `https://openrouter.ai/api/v1` | `anthropic/claude-haiku-5.5` | Works |
@@ -23,8 +23,8 @@ If Anthropic refuses browser calls from your site, use OpenRouter or LiteLLM for
 
 **With a static bundle** like the one generated with `nsdeploy`,
 the browser calls the provider itself. Build with
-`--static-bundle --upstream <router base URL>`, or set Router base URL in the panel to
-the provider's URL. This only works for providers that allow browser calls (CORS).
+`--static-bundle --upstream <provider URL>`, or in the `⚙ AI model settings` panel, set
+Provider URL under `Advanced settings (optional)` to the provider's URL. This only works for providers that allow browser calls (CORS).
 
 Things to know for every provider:
 
@@ -101,7 +101,7 @@ on the LiteLLM server, and the browser only holds a LiteLLM key.
    export LITELLM_MASTER_KEY="sk-$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
    litellm --config config.yaml --host 127.0.0.1 --port 4000
    ```
-1. Point the site at `http://127.0.0.1:4000/v1` as Router base URL.
+1. Point the site at `http://127.0.0.1:4000/v1` as Provider URL.
 
 Things to know:
 
@@ -112,7 +112,7 @@ Things to know:
   to limit it to your site's origin.
 - **Model names.** The model list shows your `model_name` aliases, so visitors type the
   alias, such as `gpt-4.1-mini`.
-- **For a public site,** run LiteLLM on a server behind HTTPS, and set Router base URL
+- **For a public site,** run LiteLLM on a server behind HTTPS, and set Provider URL
   to its address, such as `https://litellm.example.com/v1`. Set `LITELLM_CORS_ORIGINS`
   to your site's origin, such as `https://example.com` (a comma-separated list for more
   than one), and give each visitor a virtual key. Browsers block an `https` page from
@@ -129,11 +129,11 @@ is needed. It's a quick way to try a site locally.
    ```
 1. Serve the site from `127.0.0.1` or `localhost`, as in the
    [Quickstart](../quickstart.md#manually-generate-a-website-bundle).
-1. In the panel, set:
+1. In the `⚙ AI model settings` panel, set:
    - API key: any text, such as `ollama`. Ollama ignores it, but the site won't send a
      request with an empty key.
-   - Model: `gemma4:e4b`
-   - Router base URL: `http://127.0.0.1:11434/v1`
+   - Under `Advanced settings (optional)`, Model: `gemma4:e4b`
+   - Under `Advanced settings (optional)`, Provider URL: `http://127.0.0.1:11434/v1`
 
 Things to know:
 

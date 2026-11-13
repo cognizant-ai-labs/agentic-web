@@ -121,14 +121,17 @@ Its agents need to be grounded in the restaurant's actual menu and cart next:
    ```
 2. Select components from
    [the generated static bundle](examples/sites/pizza_restaurant_website_assistant_static/):
-   copy its `runtime/` directory, `agent-manifest.json`,
+   copy its `agent-manifest.json`,
    `pizza_restaurant_website_assistant.network.json`, `links.json`, and
-   `agent-mcp.json` into the new directory. Keep the restaurant's HTML and styles;
-   the generated bundle's full-page `index.html` and `theme.css` are not needed.
+   `agent-mcp.json` into the new directory. Copy the browser runtime from
+   [skills/agentify-website/runtime/](skills/agentify-website/runtime/) instead of the
+   bundle's `runtime/`: it is nsdeploy's runtime with the `website_*` tools of step 5.
+   Keep the restaurant's HTML and styles; the generated bundle's full-page
+   `index.html` and `theme.css` are not needed.
 3. Add a mount point below the restaurant checkout in `index.html` and load
    `site.js` as a module. In [site.js](examples/pizza_restaurant_agentified/site.js),
    call the copied runtime's `boot()` with that mount point and URLs relative to
-   the current site. The runtime provides chat, BYOK settings, agent activity,
+   the current site. The runtime provides chat, AI model settings, agent activity,
    structured action proposals, and a confirmation dialog.
 4. Ground the network in the restaurant. Update the copied network's instructions
    to use actual menu and order data, remove instructions to invent demo results,
@@ -161,10 +164,11 @@ Its agents need to be grounded in the restaurant's actual menu and cart next:
    python -m http.server 8080 --directory ./examples/pizza_restaurant_agentified
    ```
    Open http://127.0.0.1:8080/, scroll to **Ask Little Oven**, and expand
-   **BYOK / router settings**. Enter your [Otari](#mozillas-otari) API key, then click
-   **Apply, save & reload**. The example uses hosted Otari and
-   `alibaba/qwen-3.5-35b-a3b` by default. For another provider, also enter its model ID
-   and a browser-accessible OpenAI-compatible router base URL.
+   **⚙ AI model settings**. Paste your [Otari](#mozillas-otari) API key, then select
+   **Save and start**. The example uses hosted Otari and
+   `alibaba/qwen-3.5-35b-a3b` by default. For another provider, select it in the panel,
+   which fills in its provider URL and model, or enter both under
+   **Advanced settings (optional)**. The provider must allow requests from the browser.
    The selected provider receives the chat and restaurant context; LLM calls use
    the customer's credentials.
 
