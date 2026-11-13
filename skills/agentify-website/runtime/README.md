@@ -23,13 +23,23 @@ filling in the booking form, run without asking. Only actions the site marks
 `irreversible`, like a booking, wait for the visitor to confirm. The AI model cannot
 change these marks.
 
+Linked sites need one more edit. When this site calls a partner site's network, that
+network runs in this visitor's browser and on their key. In nsdeploy's runtime, the
+partner network chooses the model and how many steps it takes, so it chooses what the
+visitor pays for. With the edit, it runs on the visitor's model or, if they picked none,
+this site's model, within this site's step limit.
+
 Edited files. Each one has a line near its top saying that it was changed:
 
 - `runner.js` offers each local-only action listed in the manifest's `actions.agentTools`
   as a `website_<name>` tool and runs it through the site's action registry. Actions with
-  the `irreversible` effect ask the visitor first. It also adds a `render_cruse` tool for
-  forms and tables in the chat.
-- `engine.js` passes the page's confirmation dialog to `runner.js`.
+  the `irreversible` effect ask the visitor first. Only the visitor's own site gets these
+  tools, never a partner network. It also adds a `render_cruse` tool for forms and tables
+  in the chat. It stops a partner agent at the step limit `engine.js` passes.
+- `engine.js` passes the page's confirmation dialog to `runner.js`. It also runs a partner
+  network on the visitor's model or, when the visitor picked none, on this site's
+  front-agent model, and passes this site's step limit, so a partner network cannot choose
+  what the visitor pays for.
 - `cruse.js` accepts CRUSE replies without code fences and merges forms from several
   agents into one. It also tells agents about the `render_cruse` tool.
 - `ui.js` shows a time picker for `format: "time"` fields and option labels from
@@ -47,8 +57,9 @@ Protocol name: `nsdeploy`. Use it for `<protocol_name>` in `agent-manifest.json`
 names the discovery files, such as `.well-known/nsdeploy.json`, that nsdeploy's tools read.
 
 Do not edit or replace these files for one site. This copy is for use until nsdeploy's
-own runtime offers these tools.
+own runtime offers these tools and partner limits.
 
 nsdeploy plans to move to a runtime built on the neuro-san TS package (nsdeploy PR #10).
 That runtime has no `website_*` tools yet. Before a site switches to it, move the edits
-above to it and check that it offers those tools.
+above to it and check that it offers those tools and runs a partner network on the
+caller's model and step limit.

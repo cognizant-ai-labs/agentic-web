@@ -17,6 +17,8 @@ The agentified site is a copy of the original site with these additions:
   links.json                  templates/links.json
   agent-mcp.json              generated from the manifest; do not edit by hand
   .well-known/                generated discovery files (see "How others find the site")
+  bridge/action-bridge.html   written by the build; other agent sites load the page in a hidden frame
+  bridge/agent-manifest.json  written by the build; the bridge's own manifest, with no action module
   runtime/                    copied unchanged from the skill's runtime/
   tests/                      templates/tests/, filled in for this site
 ```
@@ -39,9 +41,9 @@ editing the copy.
 | `brand` | The name in the chat header. |
 | `theme.primary` | Set inline as `--ns-primary` on the mount, so it overrides the CSS value. |
 | `llm_router.base_url`, `.byok_router`, `.mock` | Default router for BYOK. The template uses hosted Otari, `https://api.otari.ai/api/v1`, to match the model in `templates/network.hocon`. If you change one, change the other. `mock: false` for a real site. |
-| `peer_policy` | `"mode": "closed"` unless the network calls other sites. |
+| `peer_policy`, `allowed_peers` | `"mode": "closed"`. List the origin of each partner site and MCP server in `allowed_peers`: the runtime refuses every other origin that this site's network asks for. A partner's network is checked against the partner's own `allowed_peers` (`runtime/engine.js`, `_assertAllowedPeer`), so a visitor here can also get a card for a site that a partner calls. |
 | `deployment.mode` | Must be `"static"`. |
-| `actions.version`, `.module`, `.agentTools` | `1`, the actions module path, and the action names that become `website_*` tools. |
+| `actions.version`, `.module`, `.bridge`, `.agentTools` | `1`, the actions module path, `"./bridge/action-bridge.html"` (the page other agent sites load, written by the build), and the action names that become `website_*` tools. |
 | `linking.exports[].aliases` | Names that match when another site links to this one by a name instead of the exact URL. |
 
 The manifest also has `linking.protocol` (`<protocol_name>-link/v1`) and `agent_mcp`
@@ -73,7 +75,8 @@ error to the console and leaves the page alone.
 The site's global styles for `button`, `input`, `label`, `select`, `legend` and headings
 also apply to the assistant. `templates/assistant.css` undoes the common ones, but open
 the page in a browser and check the chat, a form and a choice list in the chat, the
-settings panel and the confirmation dialog. Hover the assistant's buttons too, such as
+settings panel, the confirmation dialog and, if the site calls a partner, the consent
+card. Hover the assistant's buttons too, such as
 **Developer**: a site's `button:hover` rule reaches them. Add overrides under `#agent-app`
 for the chat and the settings panel. `site.js` adds its confirmation dialog to `<body>`,
 outside `#agent-app`, so style it with `.assistant-review` rules. The runtime's own
@@ -82,10 +85,12 @@ has its own dialogs under `<body>`, check that these rules do not change them.
 
 ## Check without a key
 
-A form, a choice list or the dialog appears only after a model reply, which needs a key.
-To check them without one, run this in the browser's DevTools console on the page with
-the assistant. Replace the two `<...>` with an irreversible action and valid arguments
-for it.
+A form, a choice list, the dialog or the consent card appears only after a model reply,
+which needs a key. To check them without one, run this in the browser's DevTools console
+on the page with the assistant. Replace the two `<...>` with an irreversible action and
+valid arguments for it. If the action works on page state, such as a cart, first use the
+page's own buttons to put the page in a state where the call would succeed, and pass the
+version the read action gives then.
 
 ```js
 const { renderPresentation } = await import("./runtime/ui.js");
@@ -142,6 +147,26 @@ script, send it to the DevTools protocol's `Runtime.evaluate` with `replMode: tr
 allows the top-level `await`. The call returns before the dialog closes. Reload the page
 to remove the form and the choice list.
 
+If the site calls a partner, also check the consent card. This shows it as the runtime
+does and sends nothing. Replace the `<...>` with the partner's label, its host (such as
+`127.0.0.1:8080`) and a request:
+
+```js
+void window.__nsweb.engine.onConsent({
+  kind: "network",
+  peerLabel: "<partner label>",
+  peerOrigin: "<partner host>",
+  requestText: "<a request>",
+  est: {
+    totalTokens: 200,
+    costText: null,
+  },
+}).then(console.log);
+```
+
+Press a button: the console logs `allow`, `always` or `decline`. Run it again to try
+another button, and reload the page afterwards.
+
 To see what a read action returns, such as one that needs `DOMParser`, run this. Replace
 `<read_action>` with its name and `{}` with its arguments. `execute` asks its second
 argument to approve the call. `Boolean` approves anything at once, so the snippet checks
@@ -168,26 +193,53 @@ for (const entry of engine.actions.catalog(scope)) {
 
 ## Serving and trying it
 
-ES modules and `fetch` need HTTP, not `file://`. Bind to `127.0.0.1`, so the site is not
-reachable from the local network during the check:
+ES modules and `fetch` need HTTP, not `file://`. Serve the site with the skill's server.
+It binds to `127.0.0.1`, so the site is not reachable from the local network during the
+check:
 
 ```shell
-python3 -m http.server 8080 --bind 127.0.0.1 --directory <out>
+node SKILL_DIR/scripts/serve_site.mjs <out> --port 8080
 ```
 
-On Windows, use `python` instead of `python3`.
+It sends the headers that "Static hosting" below lists. `python3 -m http.server` works
+for one site but sends no CORS header, so other sites cannot call it.
 
 Open http://127.0.0.1:8080/, expand **BYOK / router settings**, and enter an API key,
-model and router base URL. Then select **Apply, save & reload**. If you served another
+model and router base URL. Then select **Apply, save & reload**. Fill in the router
+before the model, or type a setup name: the runtime names the setup from both fields when
+the model is typed (`runtime/ui.js`), so a setup for another router can be named
+"OpenAI". If you served another
 folder on the same port before, the browser may still show its cached files, with no
 assistant. Use another port, or reload while holding Shift.
 
 On `localhost` and `127.0.0.1`, the runtime also copies saved setups, keys included,
 into a cookie for 180 days, so the settings follow you across local ports
-(`runtime/byok.js`). Any page served from that host, on any port, can read it. For a
+(`runtime/byok.js`). Any page served from that host, on any port, can read it. A partner
+site on the same host name gets that cookie, key included, with its bridge requests.
+Serve linked sites on different host names, such as `127.0.0.1` and `localhost`. For a
 local check, use a key with a low spending limit. Afterwards, delete the saved setup in
 the settings and close the tab. A hosted site on any other domain keeps the key in that
 site's own browser storage only.
+
+## The README
+
+If the copy has a README, update it before you finish:
+
+- the run command, with the server's path as the reader runs it, such as
+  `skills/agentify-website/scripts/serve_site.mjs` from the agentic-web repository root,
+  and where to run it from. If `<out>` is not where the folder will live, say which
+  location the commands assume, and tell the user;
+- the file list, with the files this skill adds, `bridge/` included;
+- that the assistant sends the visitor's messages, and the page data it reads, to the
+  LLM provider the visitor picks. Fix any line that says no data leaves the page;
+- if it tells readers how to try their own key, both steps from above: delete the saved
+  setup, then close the tab;
+- the network URL, and that other agent sites that call it get no site tools, so their
+  assistant points to this site's page;
+- if this site calls partners, that a calling site's visitor also gets a card for each
+  partner this network asks;
+- if the site calls a partner, a "Linked site" section (step 8 of "Call a partner site"
+  in `linking.md`).
 
 ## Providers and other things to warn about
 
@@ -215,6 +267,11 @@ these with `Access-Control-Allow-Origin: *`: `agent-manifest.json`,
 `<network>.network.json`, `links.json`, `agent-mcp.json` and the two `.well-known` files.
 Do not add that header to business endpoints. Serve `runtime/sandbox-worker.js` with the
 `Content-Security-Policy` below. If the site is under a subpath, add it to each path.
+
+Do not send `X-Frame-Options` or a `frame-ancestors` policy for `bridge/`: callers load
+`bridge/action-bridge.html` in a hidden frame. It needs no CORS header. If the site sends a
+Content-Security-Policy and calls partner sites, allow each partner's origin in
+`connect-src` and `frame-src`.
 
 On Netlify and compatible hosts, put this in a `_headers` file at the site root:
 
@@ -248,7 +305,11 @@ On Apache, put this in `.htaccess`:
 </IfModule>
 ```
 
-Use HTTPS in production: the visitor's key is stored in the browser for this origin.
+Use HTTPS in production: the visitor's key is stored in the browser for this origin, and
+any script on the page can read it (spec section 4). Load no third-party scripts. The
+spec also asks for a restrictive Content-Security-Policy on the page. If you send one,
+allow the LLM router in `connect-src` and each partner's origin in `connect-src` and
+`frame-src`, then check the chat in a browser.
 
 ## How others find the site
 
@@ -257,10 +318,8 @@ such as the [NANDA Index](https://nandaindex.org/) and the
 [list of agentic websites](https://github.com/cognizant-ai-labs/agentic-web/blob/main/docs/agentic_websites.md),
 which takes pull requests. Both publish the site, so leave them to the user or ask first.
 
-Other agent sites cannot call a network built with this skill yet. A caller first loads
-the site's actions from a page that this skill does not publish. After about 10 seconds,
-the caller's page asks its own visitor to open that page in a popup, which cannot connect
-either. The skill also does not set up calls from this network to other agent sites.
+Other agent sites can call this network. They run it in their own visitor's browser, on
+that visitor's key, and get no `website_*` tools. See `linking.md`.
 
 - **Network URL.** The network's address is the folder that holds `agent-manifest.json`,
   then the network name, for example `https://pizza.example/little_oven_assistant` (spec

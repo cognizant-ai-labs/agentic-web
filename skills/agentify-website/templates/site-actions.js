@@ -66,7 +66,7 @@ class SiteActions {
   static addItemAction() {
     return {
       name: "add_item",
-      description: "TODO: Add a quantity of one <item> to the visible <cart>, keeping existing items. Returns the updated state, or ok false with a reason. Does not place an order.",
+      description: "TODO: Add a quantity of one <item> to the visible <cart>, keeping existing items. Returns the updated state with the new version, or ok false with a reason. Does not place an order.",
       // "write" runs immediately. Use it only for changes the visitor can undo on the page.
       effect: "write",
       inputSchema: {
@@ -127,7 +127,7 @@ class SiteActions {
           expectedVersion: {
             type: "integer",
             minimum: 0,
-            description: "TODO: version from website_get_site_state, read in this turn.",
+            description: "TODO: the latest version in this turn: from website_get_site_state, or from a cart change made after that read.",
           },
         },
       },

@@ -1,0 +1,18 @@
+{
+  "protocol": "nsdeploy-link/v1",
+  "exports": [
+    {
+      "network": "marrow_point_visitor_desk",
+      "front_man": "visitor_desk_assistant",
+      "aliases": [
+        "marrow_point_visitor_desk",
+        "visitor_desk_assistant"
+      ],
+      "url": "marrow_point_visitor_desk"
+    }
+  ],
+  "imports": [],
+  "link_updates": {
+    "mode": "browser-local"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "protocol": "nsdeploy-link/v1",
+  "exports": [
+    {
+      "network": "marrow_point_harbor_tours",
+      "front_man": "harbor_tours_assistant",
+      "aliases": [
+        "marrow_point_harbor_tours",
+        "harbor_tours_assistant"
+      ],
+      "url": "marrow_point_harbor_tours"
+    }
+  ],
+  "imports": [],
+  "link_updates": {
+    "mode": "browser-local"
+  }
+}

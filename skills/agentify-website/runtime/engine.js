@@ -371,9 +371,30 @@ export class Engine {
       routerBaseUrl: llm.baseUrl,
       mock: llm.mock,
       apiKey: self.byokKey,
-      modelOverride: self.modelOverride,
+      // A partner network runs on the visitor's model, or on this site's front-agent model
+      // when the visitor picked none, and within this site's step limit. So a partner
+      // network cannot choose how much the visitor pays.
+      modelOverride: isTop ? self.modelOverride : (self.modelOverride || self.callerModel()),
+      maxSteps: isTop ? 0 : self.callerMaxSteps(),
     };
     return ctx;
+  }
+
+  // This site's front-agent spec. kernel.js copies the network's llm_config and max_steps
+  // into each agent, so its values are the network's unless the agent sets its own.
+  topFrontSpec() {
+    const network = this.top?.network;
+    return network ? network.getAgentSpec(network.findFrontMan()) : null;
+  }
+
+  // The model this site's front agent runs on, or "" when none is set.
+  callerModel() {
+    return normalizeModelName(this.topFrontSpec()?.llm_config?.model_name || "");
+  }
+
+  // The step limit of this site's front agent, with the runner's default.
+  callerMaxSteps() {
+    return this.topFrontSpec()?.max_steps || 12;
   }
 
   // fetch-and-run-locally: turn a peer URL into a runnable Session.

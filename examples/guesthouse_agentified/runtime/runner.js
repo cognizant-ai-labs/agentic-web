@@ -195,7 +195,9 @@ export async function buildToolTable(ctx, spec, chain, parentSpan) {
   }
   // Publisher opt-in: expose selected local website actions as model tools.
   // Irreversible operations also require the host's confirmation callback.
-  const callable = new Set(ctx.manifest?.actions?.agentTools || []);
+  // Only the visitor's own site gets them. A partner network runs on this page, and a
+  // partner's actions would reach this page's confirmation dialog.
+  const callable = new Set(ctx.isTop ? ctx.manifest?.actions?.agentTools || [] : []);
   for (const action of ctx.actions?.catalog({ base: ctx.baseOrigin, network: network.name }) || []) {
     if (!callable.has(action.name) || action.availability !== "local-only"
       || (action.effect === "irreversible" && typeof ctx.confirmWebsiteActions !== "function")) continue;
@@ -343,7 +345,7 @@ export async function dispatchToolCall(ctx, entry, args, parentSpan, chain) {
 
   if (entry.kind === "website") {
     const registered = ctx.actions.entries.get(entry.ref);
-    if (!registered || !ctx.manifest?.actions?.agentTools?.includes(registered.name)
+    if (!ctx.isTop || !registered || !ctx.manifest?.actions?.agentTools?.includes(registered.name)
       || registered.base !== ctx.baseOrigin || registered.network !== ctx.network.name
       || registered.availability !== "local-only"
       || (registered.effect === "irreversible" && typeof ctx.confirmWebsiteActions !== "function")) {
@@ -535,7 +537,9 @@ export async function runAgentManual(ctx, agentName, userText, parentSpan, chain
     messages.push({ role: "user", content: userText });
 
     const model = ctx.modelOverride || spec.llm_config?.model_name || network.config.llm_config?.model_name || ctx.defaultModel;
-    const maxSteps = spec.max_steps || network.config.max_steps || 12;
+    // A partner context carries this site's step limit (engine.js _makeCtx), so a partner
+    // network cannot raise it.
+    const maxSteps = Math.min(spec.max_steps || network.config.max_steps || 12, ctx.maxSteps || Infinity);
 
     let finalText = "";
     for (let step = 0; step < maxSteps; step++) {

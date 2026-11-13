@@ -22,9 +22,10 @@ export class StubDocument {
    * Build a document that only knows the ids found in the page's HTML.
    *
    * :param html: The text of index.html.
+   * :param url: The page's address in the test, which document.URL gives.
    * :return: The document.
    */
-  static fromHtml(html) {
+  static fromHtml(html, url = "http://localhost:8080/") {
     const ids = new Set();
     for (const match of html.matchAll(/\sid="([^"]+)"/g)) {
       ids.add(match[1]);
@@ -38,7 +39,7 @@ export class StubDocument {
         hidden.add(id[1]);
       }
     }
-    return new StubDocument(ids, hidden);
+    return new StubDocument(ids, hidden, url);
   }
 
   /**
@@ -58,8 +59,9 @@ export class StubDocument {
    *
    * :param knownIds: The ids that exist in the page, or null to accept any id.
    * :param hiddenIds: The ids of elements that start hidden.
+   * :param url: The page's address in the test, which document.URL gives.
    */
-  constructor(knownIds = null, hiddenIds = new Set()) {
+  constructor(knownIds = null, hiddenIds = new Set(), url = "http://localhost:8080/") {
     this.knownIds = knownIds;
     this.hiddenIds = hiddenIds;
     this.elements = new Map();
@@ -67,7 +69,7 @@ export class StubDocument {
     this.body = new StubElement("body");
     this.activeElement = null;
     this.forms = [];
-    this.URL = "http://localhost:8080/";
+    this.URL = url;
     this.baseURI = this.URL;
   }
 
@@ -155,5 +157,52 @@ export class StubDocument {
    */
   addEventListener(name, handler) {
     this.body.addEventListener(name, handler);
+  }
+
+  /**
+   * Describe every element with an id in the page, so a test can compare the whole page
+   * before and after a call. The stand-in makes an element only when code first asks for
+   * it, so this reads every id in the page's HTML, not only the elements made so far.
+   *
+   * :return: Each id's description, from describe().
+   * :raises Error: When the document was not built with fromHtml, so it knows no ids.
+   */
+  snapshot() {
+    if (this.knownIds === null) {
+      throw new Error("snapshot() needs a document built with StubDocument.fromHtml.");
+    }
+    const page = {};
+    for (const id of this.knownIds) {
+      page[id] = StubDocument.describe(this.getElementById(id));
+    }
+    return page;
+  }
+
+  /**
+   * Describe one element and its children as plain data.
+   *
+   * :param element: A StubElement, or a text child.
+   * :return: The text of a text child, or the element's text, value, state, message,
+   *   attributes and children.
+   */
+  static describe(element) {
+    if (!(element instanceof StubElement)) {
+      return String(element);
+    }
+    const children = [];
+    for (const child of element.children) {
+      children.push(StubDocument.describe(child));
+    }
+    return {
+      tag: element.tag,
+      text: element.textContent,
+      value: element.value,
+      checked: Boolean(element.checked),
+      hidden: element.hidden,
+      disabled: element.disabled,
+      message: element.validationMessage,
+      attributes: {...element.attributes},
+      children: children,
+    };
   }
 }

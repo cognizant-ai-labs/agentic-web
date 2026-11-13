@@ -1,0 +1,2 @@
+# The test sites hold no runtime copy. The Chrome check adds one to its own copy.
+fixtures/*/runtime/

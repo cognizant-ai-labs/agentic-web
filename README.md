@@ -196,10 +196,25 @@ agent made by following the skill.
 
 ## Connect to other agent networks
 
-To expend the capabilities of your agent networks, connect them to other [Agentic Websites](docs/agentic_websites.md).
+To expand the capabilities of your agent networks, connect them to other [Agentic Websites](docs/agentic_websites.md).
 
-> [!NOTE]
-> TODO: Add a how-to
+An agent calls another site's network by its URL: the folder that holds that site's
+`agent-manifest.json`, then the network name, such as
+`https://partner.example/partner_network`. List that URL in the agent's `tools`, and the
+partner's origin in `allowed_peers` in your `agent-manifest.json`: unless `peer_policy`
+is `"open"`, the runtime refuses every other origin. Before anything is sent, the
+visitor agrees on a card. The partner's network then runs in the visitor's browser, on
+the visitor's own key. It gets none of the partner site's own functions, so it can say
+what that site offers and point to its page, but not give live availability or book.
+
+For a site agentified with the skill, follow
+[`references/linking.md`](skills/agentify-website/references/linking.md). The build
+writes the `bridge/` page that other agent sites load before they run your network, and
+`scripts/check_partner.mjs` checks a partner before you add it.
+[`examples/harbor_tours_agentified/`](examples/harbor_tours_agentified/) (made from
+[`examples/harbor_tours/`](examples/harbor_tours/)) and
+[`examples/guesthouse_agentified/`](examples/guesthouse_agentified/) call each other.
+Their READMEs show how to serve both on two host names.
 
 
 ## Infrastructure
