@@ -13,12 +13,13 @@ Both work from a static bundle:
 
 ## How the page reaches the LLM
 
-In the `⚙ BYOK / router settings` panel, the `API key`, `Model` and `Router base URL`
-fields decide where LLM requests go. The browser sends each request to the Router base URL.
+In the `⚙ AI model settings` panel, the `API key` field and the `Model` and `Provider URL`
+fields under `Advanced settings (optional)` decide where LLM requests go. The browser
+sends each request to the Provider URL.
 
 **Static bundle.** `nsdeploy`'s `--static-bundle` builds plain files with no server and no relay.
 The browser calls the router itself, so the router must allow browser calls (CORS).
-An empty Router base URL means the `--upstream` URL given at build time.
+An empty Provider URL means the `--upstream` URL given at build time.
 
 Hosted Otari allows browser calls, which is why the static bundle in the
 [Quickstart](../quickstart.md#manually-generate-a-website-bundle) uses it by default.
@@ -27,13 +28,13 @@ OpenAI allows them too.
 ## Hosted Otari (otari.ai)
 
 Hosted Otari allows browser calls from any site, so a static site can call it directly.
-In the `⚙ BYOK / router settings` panel, set:
+In the `⚙ AI model settings` panel, set:
 
 - API key: an API key from your [otari.ai](https://otari.ai) account.
-- Model: `alibaba/qwen-3.5-35b-a3b`
-- Router base URL: `https://api.otari.ai/api/v1`
+- Under `Advanced settings (optional)`, Model: `alibaba/qwen-3.5-35b-a3b`
+- Under `Advanced settings (optional)`, Provider URL: `https://api.otari.ai/api/v1`
 
-Click `Apply, save & reload`, then chat.
+Select `Save and start`, then chat.
 
 Things to know:
 
@@ -147,13 +148,13 @@ fine here, because it creates the key from `config.yml` when it starts.
 ### 5. Point the site at it
 
 Open an agentic website in a browser,
-and expand `⚙ BYOK / router settings`:
+and expand `⚙ AI model settings`:
 
 - API key: the value after `OTARI_LOCAL_API_KEY=` in `key.env`.
-- Model: `google/gemma4-e4b` (or `ollama:gemma4:e4b`; both work).
-- Router base URL: `http://127.0.0.1:8042/api/v1`
+- Under `Advanced settings (optional)`, Model: `google/gemma4-e4b` (or `ollama:gemma4:e4b`; both work).
+- Under `Advanced settings (optional)`, Provider URL: `http://127.0.0.1:8042/api/v1`
 
-Click `Apply, save & reload`, then chat.
+Select `Save and start`, then chat.
 
 Things to know:
 
@@ -161,7 +162,7 @@ Things to know:
   `google/gemma4-e4b`. It also lists other Ollama models found on the host. Those return
   402 until you add a pricing entry for them.
 - **Local models are slow.** A multi-agent turn can take a minute or more.
-- **For a public site,** run Otari on a server behind HTTPS, and set Router base URL to
+- **For a public site,** run Otari on a server behind HTTPS, and set Provider URL to
   its address, such as `https://otari.example.com/api/v1`. If `cors_allow_origins` lists
   exact origins, add your site's origin, such as `https://example.com`. Browsers block an
   `https` page from calling a plain `http` address other than `localhost`.
@@ -170,9 +171,9 @@ Things to know:
 
 | Symptom | Cause and fix |
 |---|---|
-| Chat shows `⚠️ Failed to fetch`, console shows "blocked by CORS policy" | The browser is calling a router that doesn't allow this page. Hosted Otari: check that Router base URL ends in `/api/v1`. Self-hosted Otari: add the page's exact origin to `cors_allow_origins`, or use `"*"`, and restart Otari. |
+| Chat shows `⚠️ Failed to fetch`, console shows "blocked by CORS policy" | The browser is calling a router that doesn't allow this page. Hosted Otari: check that Provider URL ends in `/api/v1`. Self-hosted Otari: add the page's exact origin to `cors_allow_origins`, or use `"*"`, and restart Otari. |
 | 400 "This model's maximum context length is ... However, you requested ... output tokens" | Hosted Otari: this model fails when the request has no `max_tokens`, and the site doesn't send one. Pick another model, such as `alibaba/qwen-3.5-35b-a3b`. From your own code, add `max_tokens` to the request body, small enough to fit in the context window with the prompt. |
-| The site keeps using an old router | The panel saves your setup in the browser. On `localhost` and `127.0.0.1` it is also kept in a cookie shared by every local port for 180 days, so a router saved for another site follows you. Set Router base URL to the router you want, or clear it to use the site's default, then `Apply, save & reload`. |
+| The site keeps using an old router | The panel saves your setup in the browser. On `localhost` and `127.0.0.1` it is also kept in a cookie shared by every local port for 180 days, so a router saved for another site follows you. Set Provider URL to the router you want, or clear it to use the site's default, then select `Save and start`. |
 | 400 `invalid_model` | Use an exact model ID from `GET /api/v1/models`. |
 | 402 "No pricing is configured" | Self-hosted: add a `pricing` entry for that model. |
 | 404 "Otari serves its API under /api/v1" | The base URL must end in `/api/v1`, not `/v1`. |

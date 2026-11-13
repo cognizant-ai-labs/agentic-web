@@ -1,3 +1,4 @@
+// Changed by agentic-web. See README.md in this folder for what changed.
 // engine.js — top-level orchestration: load a published network from an origin,
 // compile it (HOCON -> filter chain -> validate -> AgentNetwork), and run it. Owns
 // the intrinsics (LLM client, sandbox, trace) and implements resolveRemote, the
@@ -11,7 +12,7 @@ import { TraceBus } from "./trace.js";
 import { fetchManifest, fetchText, resolveUrl, RemoteRegistry } from "./remote.js";
 import { runAgent } from "./runner.js";
 import { McpClient } from "./mcp.js";
-import { normalizeModelName } from "./model.js";
+import { fallbackModel, normalizeModelName } from "./model.js";
 import { interactionMessage } from "./cruse.js";
 import { createTurnEventStream } from "./execution-stream.js";
 import { TurnControl } from "./turn-control.js";
@@ -59,7 +60,7 @@ export function selectTopRouter(manifest, routerOverride, byokKey, modelOverride
 
   if ((hasRealKey || hasExplicitModel) && (!requested || requestedMock)) {
     if (!declared.byok_router) {
-      throw new Error("A real API key is configured, but this site publishes no BYOK router.");
+      throw new Error("A real API key is configured, but this site publishes no AI provider route.");
     }
     requested = declared.byok_router;
     return { baseUrl: requested, mock: false, upgradedToByok: true };
@@ -354,7 +355,7 @@ export class Engine {
       // Prior conversation turns ([{role,content}]), only for the top front-man.
       history: history || [],
       turnControl: turnControl || null,
-      defaultModel: network.config.llm_config?.model_name || "mock-1",
+      defaultModel: fallbackModel(network.config.llm_config?.model_name),
       isTop: !!isTop,
       frontMan: network.findFrontMan(),
       onAnswerDelta: isTop ? (t) => self.onAnswerDelta?.(t) : undefined,
@@ -370,9 +371,30 @@ export class Engine {
       routerBaseUrl: llm.baseUrl,
       mock: llm.mock,
       apiKey: self.byokKey,
-      modelOverride: self.modelOverride,
+      // A partner network runs on the visitor's model, or on this site's front-agent model
+      // when the visitor picked none, and within this site's step limit. So a partner
+      // network cannot choose how much the visitor pays.
+      modelOverride: isTop ? self.modelOverride : (self.modelOverride || self.callerModel()),
+      maxSteps: isTop ? 0 : self.callerMaxSteps(),
     };
     return ctx;
+  }
+
+  // This site's front-agent spec. kernel.js copies the network's llm_config and max_steps
+  // into each agent, so its values are the network's unless the agent sets its own.
+  topFrontSpec() {
+    const network = this.top?.network;
+    return network ? network.getAgentSpec(network.findFrontMan()) : null;
+  }
+
+  // The model this site's front agent runs on, or "" when none is set.
+  callerModel() {
+    return normalizeModelName(this.topFrontSpec()?.llm_config?.model_name || "");
+  }
+
+  // The step limit of this site's front agent, with the runner's default.
+  callerMaxSteps() {
+    return this.topFrontSpec()?.max_steps || 12;
   }
 
   // fetch-and-run-locally: turn a peer URL into a runnable Session.
