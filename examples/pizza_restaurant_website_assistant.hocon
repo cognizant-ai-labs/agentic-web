@@ -26,7 +26,7 @@
 # The model to use when the visitor picks none in the settings. It is a model on
 # hosted Otari (https://api.otari.ai/api/v1), the site's default router.
     "llm_config": {
-        "model_name": "alibaba/qwen-3.5-35b-a3b"
+        "model_name": "alibaba/qwen3.8-flash"
     },
 
     "max_execution_seconds": 600,

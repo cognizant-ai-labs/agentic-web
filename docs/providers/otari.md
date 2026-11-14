@@ -49,7 +49,7 @@ Things to know:
   then asks for the model's whole context window as output. That leaves no room for the
   prompt. Other models with the same window, such as `alibaba/qwen3-32b`, don't have this
   problem.
-  - **On a site,** pick another model, such as `alibaba/qwen-3.5-35b-a3b`. The site's
+  - **On a site,** pick another model, such as `alibaba/qwen3.8-flash`. The site's
     request has no `max_tokens`, and the settings panel has no field for it.
   - **From your own code,** add `max_tokens` to the JSON body of the
     `POST /api/v1/chat/completions` request, next to `model` and `messages`. It's a body
@@ -172,7 +172,7 @@ Things to know:
 | Symptom | Cause and fix |
 |---|---|
 | Chat shows `⚠️ Failed to fetch`, console shows "blocked by CORS policy" | The browser is calling a router that doesn't allow this page. Hosted Otari: check that Provider URL ends in `/api/v1`. Self-hosted Otari: add the page's exact origin to `cors_allow_origins`, or use `"*"`, and restart Otari. |
-| 400 "This model's maximum context length is ... However, you requested ... output tokens" | Hosted Otari: this model fails when the request has no `max_tokens`, and the site doesn't send one. Pick another model, such as `alibaba/qwen-3.5-35b-a3b`. From your own code, add `max_tokens` to the request body, small enough to fit in the context window with the prompt. |
+| 400 "This model's maximum context length is ... However, you requested ... output tokens" | Hosted Otari: this model fails when the request has no `max_tokens`, and the site doesn't send one. Pick another model, such as `alibaba/qwen3.8-flash`. From your own code, add `max_tokens` to the request body, small enough to fit in the context window with the prompt. |
 | The site keeps using an old router | The panel saves your setup in the browser. On `localhost` and `127.0.0.1` it is also kept in a cookie shared by every local port for 180 days, so a router saved for another site follows you. Set Provider URL to the router you want, or clear it to use the site's default, then select `Save and start`. |
 | 400 `invalid_model` | Use an exact model ID from `GET /api/v1/models`. |
 | 402 "No pricing is configured" | Self-hosted: add a `pricing` entry for that model. |

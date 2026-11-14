@@ -58,7 +58,7 @@ a website bundle from a `.hocon` file describing an agent network.
      --out ./examples/sites/pizza_restaurant_website_assistant_static
    ```
    `--upstream` sets the site's default router, here hosted [Otari](providers/otari.md).
-   The default model, `alibaba/qwen-3.5-35b-a3b`, comes from the `.hocon` file's
+   The default model, `alibaba/qwen3.8-flash`, comes from the `.hocon` file's
    `llm_config`.
 1. Check the output of the command, especially for warnings about DEMO-MODE agents (ungrounded agents)
    and omitted server tools.
@@ -81,7 +81,7 @@ the generated web page.
 
 Expand the `⚙ AI model settings` panel and paste your
 [Otari](https://otari.ai) API key. The bundle uses hosted Otari and
-`alibaba/qwen-3.5-35b-a3b` by default, so you can leave Model and Provider URL empty.
+`alibaba/qwen3.8-flash` by default, so you can leave Model and Provider URL empty.
 
 To use another provider, select it in the panel, which fills in its Provider URL and
 Model. Or open `Advanced settings (optional)` and set the Model and an OpenAI-compatible

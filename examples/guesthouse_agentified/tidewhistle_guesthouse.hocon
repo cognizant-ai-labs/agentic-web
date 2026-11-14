@@ -25,7 +25,7 @@
     # model, the runtime sends its placeholder "mock-1" to the visitor's provider.
     # It is a model on hosted Otari, the default router in agent-manifest.json.
     "llm_config": {
-        "model_name": "alibaba/qwen-3.5-35b-a3b"
+        "model_name": "alibaba/qwen3.8-flash"
     },
 
     # Maximum model/tool round trips per agent invocation (runtime default 12).
