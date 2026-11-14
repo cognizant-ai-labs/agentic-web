@@ -166,7 +166,7 @@ Its agents need to be grounded in the restaurant's actual menu and cart next:
    Open http://127.0.0.1:8080/, scroll to **Ask Little Oven**, and expand
    **⚙ AI model settings**. Paste your [Otari](#mozillas-otari) API key, then select
    **Save and start**. The example uses hosted Otari and
-   `alibaba/qwen-3.5-35b-a3b` by default. For another provider, select it in the panel,
+   `alibaba/qwen3.8-flash` by default. For another provider, select it in the panel,
    which fills in its provider URL and model, or enter both under
    **Advanced settings (optional)**. The provider must allow requests from the browser.
    The selected provider receives the chat and restaurant context; LLM calls use
@@ -261,7 +261,7 @@ Otari is optional. If you'd like to try it during the hackathon:
 An open agentic website can use Otari as its LLM router:
 - **Hosted Otari** (`https://api.otari.ai/api/v1`) allows calls from the browser, so a
   static site can use it with your Otari API key. Some models fail on every request, so
-  start with `alibaba/qwen-3.5-35b-a3b`. The examples in this repo use hosted Otari with
+  start with `alibaba/qwen3.8-flash`. The examples in this repo use hosted Otari with
   that model by default.
 - **Self-hosted Otari** works once you allow the site's origin in Otari's
   `cors_allow_origins`. It can also run local models through Ollama, with no provider key.

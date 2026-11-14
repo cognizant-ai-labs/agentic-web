@@ -31,7 +31,7 @@
     "date_created": "2026-11-05T23:32:18.759708+00:00"
   },
   "llm_config": {
-    "model_name": "alibaba/qwen-3.5-35b-a3b"
+    "model_name": "alibaba/qwen3.8-flash"
   },
   "max_execution_seconds": 600,
   "instructions_prefix": "Help customers using the current restaurant website as the source of truth. Read its live information and use its existing components and available tools.",

@@ -59,7 +59,7 @@ reads, to the LLM provider the visitor picks.
 
 Open **⚙ AI model settings** under the chat, paste your own
 [Otari](https://otari.ai) API key and select **Save and start**. The site uses
-hosted Otari (`https://api.otari.ai/api/v1`) with `alibaba/qwen-3.5-35b-a3b` by
+hosted Otari (`https://api.otari.ai/api/v1`) with `alibaba/qwen3.8-flash` by
 default. For another provider, select it in the panel, which fills in its
 provider URL and model, or enter both under **Advanced settings (optional)**; the
 provider must allow browser CORS. On `localhost` and `127.0.0.1`, the runtime
