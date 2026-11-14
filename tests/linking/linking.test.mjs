@@ -61,41 +61,64 @@ class LinkingTest {
 
   /**
    * Each direction: who calls whom, the partner's network URL, the visitor's message and
-   * the request the calling site sends. Each request is under 140 characters.
+   * the request the calling site sends. Each request is under 140 characters. With facts,
+   * the URL is the partner's facts network (facts/<network>_facts): one tool-free agent and
+   * no bridge. caller-to-gh-main serves the test caller naming the guesthouse's main URL in
+   * place of its facts URL, so the main network's bridge and peer rule stay covered.
    */
   static DIRECTIONS = {
     "caller-to-gh": {
       caller: "caller",
       partner: "guesthouse",
+      partnerUrl: "http://127.0.0.1:8080/facts/tidewhistle_guesthouse_facts",
+      facts: true,
+      message: "Can you ask Tidewhistle Guesthouse whether a step-free room is free for two from 12 to 14 June?",
+      request: "Is a step-free room free for two adults from 12 to 14 June, and what would it cost?",
+    },
+    "caller-to-gh-main": {
+      caller: "caller",
+      partner: "guesthouse",
       partnerUrl: "http://127.0.0.1:8080/tidewhistle_guesthouse",
+      // The test caller names the facts URL. The served copy names this one instead.
+      listedUrl: "http://127.0.0.1:8080/facts/tidewhistle_guesthouse_facts",
+      facts: false,
       message: "Can you ask Tidewhistle Guesthouse whether a step-free room is free for two from 12 to 14 June?",
       request: "Is a step-free room free for two adults from 12 to 14 June, and what would it cost?",
     },
     "gh-to-tours": {
       caller: "guesthouse",
       partner: "tours",
-      partnerUrl: "http://localhost:8081/marrow_point_harbor_tours",
+      partnerUrl: "http://localhost:8081/facts/marrow_point_harbor_tours_facts",
+      facts: true,
       message: "Are there boat trips from the harbor while we stay, from 12 to 14 June?",
       request: "Is there a boat trip for two adults between 12 and 14 June, and what does it cost?",
     },
     "tours-to-gh": {
       caller: "tours",
       partner: "guesthouse",
-      partnerUrl: "http://127.0.0.1:8080/tidewhistle_guesthouse",
+      partnerUrl: "http://127.0.0.1:8080/facts/tidewhistle_guesthouse_facts",
+      facts: true,
       message: "Where can we stay in Marrow Point from 12 to 14 June?",
       request: "Is a room free for two adults from 12 to 14 June, and what would it cost?",
     },
   };
 
   /**
-   * The second hop: the test caller asks the tour site, and the tour site's network asks
-   * the guesthouse. Each request is under 140 characters.
+   * The second hop: the test caller asks the tour site's main network, and the tour site's
+   * network asks the guesthouse. A facts network has no tools, so a second hop needs the
+   * tour site's main URL. Each request is under 140 characters.
    */
   static SECOND_HOP = {
+    toursUrl: "http://localhost:8081/marrow_point_harbor_tours",
     message: "What boat trips can we take from Marrow Point, and is there somewhere to stay nearby?",
     request: "What boat trips do you offer, and is there somewhere to stay nearby?",
     onward: "What rooms do you offer, and how do we book a stay?",
   };
+
+  /**
+   * The folder of a site's facts network, next to its manifest.
+   */
+  static FACTS_FOLDER = "facts";
 
   /**
    * Find the site folders. LINKING_GUESTHOUSE and LINKING_TOURS point the tests at other
@@ -162,9 +185,27 @@ class LinkingTest {
     }
     const partner = await LinkingTest.readSite(sites[spec.partner]);
     assert.ok(!partner.manifest.actions || partner.manifest.actions.bridge, `${sites[spec.partner]} has no actions.bridge, so other sites cannot call it.`);
+    if (spec.facts) {
+      assert.ok(existsSync(path.join(sites[spec.partner], LinkingTest.FACTS_FOLDER, "agent-manifest.json")), `${sites[spec.partner]} publishes no facts network.`);
+    }
     const caller = await LinkingTest.readSite(sites[spec.caller]);
-    assert.ok(LinkingTest.lists(caller.network.config, spec.partnerUrl), `${sites[spec.caller]} does not call ${spec.partnerUrl}.`);
+    const listed = spec.listedUrl || spec.partnerUrl;
+    assert.ok(LinkingTest.lists(caller.network.config, listed), `${sites[spec.caller]} does not call ${listed}.`);
     return null;
+  }
+
+  /**
+   * Read the partner a direction calls: its facts network, or its main network.
+   *
+   * :param folder: The partner site's folder.
+   * :param facts: True to read its facts network.
+   * :return: The site, as readSite gives it, plus prefix: "/facts" or "", the URL path of
+   *   the folder its files are served from.
+   */
+  static async readPartner(folder, facts) {
+    const partner = await LinkingTest.readSite(facts ? path.join(folder, LinkingTest.FACTS_FOLDER) : folder);
+    partner.prefix = facts ? `/${LinkingTest.FACTS_FOLDER}` : "";
+    return partner;
   }
 
   /**
@@ -200,12 +241,15 @@ class LinkingTest {
     web.serve(LinkingTest.ORIGINS.tours, sites.tours);
     web.serve(LinkingTest.ORIGINS.caller, sites.caller);
     const caller = await LinkingTest.readSite(sites[spec.caller]);
-    const partner = await LinkingTest.readSite(sites[spec.partner]);
+    const partner = await LinkingTest.readPartner(sites[spec.partner], spec.facts);
     const callerOrigin = LinkingTest.ORIGINS[spec.caller];
     // Node cannot import the calling site's action module over HTTP.
     const served = structuredClone(caller.manifest);
     delete served.actions;
     web.replace(`${callerOrigin}/agent-manifest.json`, served);
+    if (spec.listedUrl) {
+      LinkingTest.serveCallerNaming(web, caller, callerOrigin, spec.listedUrl, spec.partnerUrl);
+    }
     const front = caller.network.getAgentSpec(caller.network.findFrontMan());
     const partnerFront = partner.network.getAgentSpec(partner.network.findFrontMan());
     return {
@@ -218,7 +262,9 @@ class LinkingTest {
       callerManifest: served,
       partnerOrigin: LinkingTest.ORIGINS[spec.partner],
       partnerHost: new URL(LinkingTest.ORIGINS[spec.partner]).host,
-      label: (caller.network.linkLabels || {})[spec.partnerUrl] || "",
+      // The URL path of the partner's network file, under its folder.
+      partnerPath: `${partner.prefix}/${partner.file}`,
+      label: (caller.network.linkLabels || {})[spec.listedUrl || spec.partnerUrl] || "",
       tool: safeName(parseExternalAgent(spec.partnerUrl, callerOrigin).agentName),
       callerModel: String((front.llm_config || {}).model_name || ""),
       partnerModel: String((partnerFront.llm_config || {}).model_name || ""),
@@ -226,15 +272,52 @@ class LinkingTest {
   }
 
   /**
+   * Serve the calling site's network naming another partner URL in place of one it lists,
+   * in tools and link_labels.
+   *
+   * :param web: The served web.
+   * :param caller: The calling site, from readSite.
+   * :param callerOrigin: Where the calling site is served.
+   * :param listed: The URL the site lists.
+   * :param served: The URL the served copy names instead.
+   */
+  static serveCallerNaming(web, caller, callerOrigin, listed, served) {
+    const config = structuredClone(caller.config);
+    for (const agent of config.tools || []) {
+      if (Array.isArray(agent.tools) && agent.tools.includes(listed)) {
+        agent.tools = agent.tools.map(LinkingTest.swapUrl.bind(null, listed, served));
+      }
+    }
+    const labels = Object.assign({}, config.link_labels || {});
+    labels[served] = labels[listed];
+    delete labels[listed];
+    config.link_labels = labels;
+    web.replace(`${callerOrigin}/${caller.file}`, config);
+  }
+
+  /**
+   * Swap one tool reference for another.
+   *
+   * :param listed: The reference to replace.
+   * :param served: The reference to put in its place.
+   * :param ref: A tool reference.
+   * :return: served when ref is listed, else ref.
+   */
+  static swapUrl(listed, served, ref) {
+    return ref === listed ? served : ref;
+  }
+
+  /**
    * Serve the sites for the second hop. The test caller's served network names the tour
-   * site in place of the guesthouse, and the tour site keeps its own call to the guesthouse.
+   * site's main network in place of the guesthouse, and the tour site keeps its own call
+   * to the guesthouse.
    *
    * :param allowed: False to serve the tour site with an empty allowed_peers.
    * :return: The setup, with the fields run() and the second-hop test read.
    */
   static async setUpSecondHop(allowed) {
     const sites = LinkingTest.sites();
-    const toursUrl = LinkingTest.DIRECTIONS["gh-to-tours"].partnerUrl;
+    const toursUrl = LinkingTest.SECOND_HOP.toursUrl;
     const router = new MockRouter(LinkingTest.KEY, LinkingTest.SECOND_HOP.request, 1, 0);
     router.nest(LinkingTest.SECOND_HOP.onward);
     const web = new ExampleWeb(router, new URL(LinkingTest.ROUTER).origin, LinkingTest.KEY);
@@ -273,7 +356,25 @@ class LinkingTest {
       partnerOrigin: LinkingTest.ORIGINS.tours,
       label: "Marrow Point Harbor Tours",
       callerModel: callerModel,
+      onwardFacts: LinkingTest.namesFactsUrl(tours.config),
     };
+  }
+
+  /**
+   * Say whether any agent of a network names a partner's facts URL.
+   *
+   * :param config: The network config.
+   * :return: True when a tool is a URL ending in facts/<network>_facts.
+   */
+  static namesFactsUrl(config) {
+    for (const agent of config.tools || []) {
+      for (const ref of agent.tools || []) {
+        if (typeof ref === "string" && /\/facts\/[A-Za-z0-9_]+_facts$/.test(ref)) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   /**
@@ -291,7 +392,7 @@ class LinkingTest {
     for (const agent of config.tools || []) {
       delete agent.llm_config;
     }
-    setup.web.replace(`${setup.partnerOrigin}/${setup.partner.file}`, config);
+    setup.web.replace(`${setup.partnerOrigin}${setup.partnerPath}`, config);
     return other;
   }
 
@@ -414,16 +515,22 @@ class LinkingTest {
     assert.equal(card.peerOrigin, setup.partnerHost);
     assert.equal(card.requestText, setup.spec.request);
     assert.deepEqual(LinkingTest.paths(web.requests.slice(0, card.before), setup.partnerOrigin), [], "The partner was contacted before the visitor answered the card.");
-    // After Allow: the partner's manifest, network file and links.json, then its bridge.
+    // After Allow: the partner's manifest, network file and links.json, then for a main
+    // network its bridge. A facts manifest has no actions, so no bridge loads.
+    const prefix = setup.partner.prefix;
     assert.deepEqual(LinkingTest.paths(web.requestsTo(setup.partnerOrigin, "runtime"), setup.partnerOrigin), [
-      "/agent-manifest.json",
-      `/${setup.partner.file}`,
-      "/links.json",
+      `${prefix}/agent-manifest.json`,
+      setup.partnerPath,
+      `${prefix}/links.json`,
     ]);
-    assert.equal(web.frames.length, 1, "Expected one bridge frame.");
-    assert.equal(web.frames[0].src, `${setup.partnerOrigin}/bridge/action-bridge.html`);
-    assert.equal(web.frames[0].sandbox, "allow-scripts allow-same-origin");
-    assert.equal(web.frames[0].ready, true, `The bridge never said it was ready: ${web.frames[0].error}`);
+    if (setup.spec.facts) {
+      assert.deepEqual(web.frames, [], "A facts call loaded a bridge frame.");
+    } else {
+      assert.equal(web.frames.length, 1, "Expected one bridge frame.");
+      assert.equal(web.frames[0].src, `${setup.partnerOrigin}/bridge/action-bridge.html`);
+      assert.equal(web.frames[0].sandbox, "allow-scripts allow-same-origin");
+      assert.equal(web.frames[0].ready, true, `The bridge never said it was ready: ${web.frames[0].error}`);
+    }
     assert.deepEqual(web.dialogs, []);
     // The key goes only to the router, and nothing goes to a host the test does not serve.
     for (const record of web.requests) {
@@ -440,11 +547,21 @@ class LinkingTest {
       assert.equal(chat.keyOk, true, "A partner model call did not carry the visitor's key.");
     }
     assert.deepEqual(partnerChats[0].roles, ["system", "user"]);
-    assert.equal(partnerChats[0].peerRule, true, "The partner's instructions lack the peer rule.");
-    assert.equal(partnerChats[0].noActionsNote, true, "The partner's prompt lacks the runtime's no-actions note.");
     const calls = LinkingTest.events(run.trace, "remote_call", "start");
     assert.equal(calls.length, 1);
     assert.deepEqual(Object.keys(calls[0].requestPayload.sly_data || {}), []);
+    if (setup.spec.facts) {
+      // One model call with the dated facts, no tools and none of the runtime's notes.
+      assert.equal(partnerChats.length, 1, "A facts call took more than one model call.");
+      assert.ok(partnerChats[0].facts, "The partner's prompt holds no PUBLIC FACTS.");
+      assert.deepEqual(partnerChats[0].tools, [], "The facts network was offered tools.");
+      assert.equal(partnerChats[0].peerRule, false);
+      assert.equal(partnerChats[0].noActionsNote, false, "The facts network's prompt has the runtime's no-actions note.");
+      assert.match(run.result.text, /^CALLER_FINAL: PARTNER_ANSWER: peer rule no; no-actions note no\. Facts as of \d{4}-\d{2}-\d{2}\.$/);
+      return;
+    }
+    assert.equal(partnerChats[0].peerRule, true, "The partner's instructions lack the peer rule.");
+    assert.equal(partnerChats[0].noActionsNote, true, "The partner's prompt lacks the runtime's no-actions note.");
     assert.match(run.result.text, /^CALLER_FINAL: PARTNER_ANSWER: peer rule yes; no-actions note yes\.$/);
   }
 
@@ -535,6 +652,16 @@ class LinkingTest {
       return;
     }
     const setup = await LinkingTest.setUp(direction, 1);
+    if (setup.spec.facts) {
+      // A facts network has no tools, so its run is offered nothing to call back with.
+      const run = await LinkingTest.run(setup, "", "allow");
+      assert.equal(run.cards.length, 1, "Expected exactly one consent card.");
+      const partnerChats = setup.router.partnerChats();
+      assert.equal(partnerChats.length, 1, "The facts network made more than one model call.");
+      assert.deepEqual(partnerChats[0].tools, [], "The facts network was offered tools.");
+      assert.match(run.result.text, /^CALLER_FINAL: PARTNER_ANSWER: /);
+      return;
+    }
     const callerUrl = `${setup.callerOrigin}/${setup.caller.name}`;
     if (!LinkingTest.lists(setup.partner.config, callerUrl)) {
       const config = structuredClone(setup.partner.config);
@@ -543,7 +670,7 @@ class LinkingTest {
           agent.tools = (agent.tools || []).concat([callerUrl]);
         }
       }
-      setup.web.replace(`${setup.partnerOrigin}/${setup.partner.file}`, config);
+      setup.web.replace(`${setup.partnerOrigin}${setup.partnerPath}`, config);
       t.diagnostic(`The partner's network does not call ${callerUrl}, so the test adds that call.`);
     }
     const run = await LinkingTest.run(setup, "", "allow");
@@ -583,9 +710,9 @@ class LinkingTest {
     assert.match(MockRouter.partnerText(results[0]), /^PARTNER_ANSWER: /);
     assert.equal(results[1], `Skipped ${setup.label}: that network was already consulted for this query. Continue with available results and do not retry it.`);
     assert.deepEqual(LinkingTest.paths(setup.web.requestsTo(setup.partnerOrigin, "runtime"), setup.partnerOrigin), [
-      "/agent-manifest.json",
-      `/${setup.partner.file}`,
-      "/links.json",
+      `${setup.partner.prefix}/agent-manifest.json`,
+      setup.partnerPath,
+      `${setup.partner.prefix}/links.json`,
     ]);
   }
 
@@ -643,7 +770,7 @@ class LinkingTest {
         agent.tools = (agent.tools || []).concat(["no_such_tool"]);
       }
     }
-    setup.web.replace(`${setup.partnerOrigin}/${setup.partner.file}`, config);
+    setup.web.replace(`${setup.partnerOrigin}${setup.partnerPath}`, config);
     const run = await LinkingTest.run(setup, "", "allow");
     assert.equal(run.cards.length, 1);
     assert.deepEqual(setup.router.partnerChats(), [], "A partner that fails validation made a model call.");
@@ -734,6 +861,9 @@ class LinkingTest {
       assert.ok(match, "partner_rules does not name the read action with the partner's link.");
       assert.ok((site.manifest.actions.agentTools || []).includes(match[1]), `partner_rules names website_${match[1]}, which is not in agentTools.`);
       assert.equal(strings.partner_rules, rules.partner_rules.replace("website_<read_action>", `website_${match[1]}`), "partner_rules differs from the template's.");
+      // The first grounding line lets the agent pass on a partner's facts.
+      const grounding = rules.grounding_rules.trim().split("\n")[0];
+      assert.ok(String(strings.grounding_rules || "").includes(grounding), `grounding_rules lacks the template's first line: "${grounding}"`);
     } else {
       assert.equal(strings.partner_rules, undefined, "The site calls no partner, but keeps partner_rules.");
     }
@@ -758,6 +888,15 @@ class LinkingTest {
     }
     const site = await LinkingTest.readSite(folder);
     assert.ok(!site.manifest.actions || site.manifest.actions.bridge, `${folder} has no actions.bridge, so other sites cannot call it.`);
+    // Each example publishes dated public facts for callers, and its manifest exports them.
+    assert.ok(existsSync(path.join(folder, "agent-facts.mjs")), `${folder} has no agent-facts.mjs.`);
+    let exported = false;
+    for (const entry of (site.manifest.linking || {}).exports || []) {
+      if (entry.url === `${LinkingTest.FACTS_FOLDER}/${site.name}_facts`) {
+        exported = true;
+      }
+    }
+    assert.ok(exported, `${folder}'s manifest does not export its facts network.`);
     const skillRuntime = path.join(LinkingTest.REPO, "skills", "agentify-website", "runtime");
     const files = await LinkingTest.filesUnder(skillRuntime);
     assert.deepEqual(await LinkingTest.filesUnder(path.join(folder, "runtime")), files, "The example's runtime/ has other files than the skill's.");
@@ -809,10 +948,57 @@ class LinkingTest {
       assert.equal(run.cards[1].requestText, LinkingTest.SECOND_HOP.onward);
       assert.deepEqual(LinkingTest.paths(web.requests.slice(0, run.cards[1].before), guesthouse), [], "The guesthouse was contacted before its card was answered.");
       assert.ok(setup.router.nestedChats().length >= 1, "The guesthouse made no model call.");
-      assert.match(run.result.text, /^CALLER_FINAL: PARTNER_ANSWER: NESTED_ANSWER: peer rule yes; no-actions note yes\.$/);
+      // The tour site asks the guesthouse's facts network or its main network, whichever
+      // it names, and each answers differently.
+      if (setup.onwardFacts) {
+        assert.match(run.result.text, /^CALLER_FINAL: PARTNER_ANSWER: NESTED_ANSWER: peer rule no; no-actions note no\. Facts as of \d{4}-\d{2}-\d{2}\.$/);
+      } else {
+        assert.match(run.result.text, /^CALLER_FINAL: PARTNER_ANSWER: NESTED_ANSWER: peer rule yes; no-actions note yes\.$/);
+      }
     } else {
       assert.deepEqual(LinkingTest.paths(web.requests, guesthouse), [], "The guesthouse was contacted although the tour site's allowed_peers is empty.");
       assert.match(tourChats.at(-1).toolResults[0], /^Error from tool '[A-Za-z0-9_]+': Policy: 127\.0\.0\.1:8080 is not in /);
+    }
+  }
+
+  /**
+   * L11: a site's own page never loads its facts network, and its own model calls hold no
+   * facts block. The facts cost the site's own visitors nothing.
+   *
+   * :param role: "guesthouse" or "tours".
+   * :param t: The test context.
+   */
+  static async testOwnPageSkipsFacts(role, t) {
+    const sites = LinkingTest.sites();
+    if (role === "tours" && !sites.realTours) {
+      t.skip("examples/harbor_tours_agentified does not exist yet.");
+      return;
+    }
+    const origin = LinkingTest.ORIGINS[role];
+    // The script's request is never sent, so no call here counts as a partner's.
+    const router = new MockRouter(LinkingTest.KEY, "No partner is asked in this turn.", 0, 0);
+    const web = new ExampleWeb(router, new URL(LinkingTest.ROUTER).origin, LinkingTest.KEY);
+    web.serve(origin, sites[role]);
+    const site = await LinkingTest.readSite(sites[role]);
+    // Node cannot import the site's action module over HTTP.
+    const served = structuredClone(site.manifest);
+    delete served.actions;
+    web.replace(`${origin}/agent-manifest.json`, served);
+    const setup = {
+      spec: {message: "What can you tell me about this place?"},
+      web: web,
+      router: router,
+      callerOrigin: origin,
+    };
+    const run = await LinkingTest.run(setup, "", "allow");
+    assert.deepEqual(run.cards, []);
+    for (const record of web.requestsTo(origin, null)) {
+      assert.ok(!record.path.startsWith(`/${LinkingTest.FACTS_FOLDER}/`), `The site's own page fetched ${record.path}.`);
+    }
+    const chats = router.callerChats();
+    assert.ok(chats.length >= 1, "The site's own page made no model call.");
+    for (const chat of chats) {
+      assert.equal(chat.facts, null, "The site's own model call holds a facts block.");
     }
   }
 
@@ -828,27 +1014,31 @@ class LinkingTest {
   }
 }
 
-test("L1 fixture caller -> guesthouse: one card, then the partner's files and bridge, on the caller's model", LinkingTest.testAllowedCall.bind(null, "caller-to-gh"));
-test("L2 fixture caller -> guesthouse: the visitor's model is used by both sites", LinkingTest.testVisitorModel.bind(null, "caller-to-gh"));
-test("L3 fixture caller -> guesthouse: a decline contacts no one", LinkingTest.testDecline.bind(null, "caller-to-gh"));
-test("L5 fixture caller -> guesthouse: the partner is not offered a call back", LinkingTest.testNoCallBack.bind(null, "caller-to-gh"));
-test("L6 fixture caller -> guesthouse: a second call is skipped and the partner runs once", LinkingTest.testSecondCallSkipped.bind(null, "caller-to-gh"));
-test("L7 fixture caller -> guesthouse: a partner missing from allowed_peers is refused", LinkingTest.testPolicyRefusal.bind(null, "caller-to-gh"));
-test("L9 fixture caller -> guesthouse: a partner that fails validation never runs", LinkingTest.testInvalidPartner.bind(null, "caller-to-gh"));
-test("L1 guesthouse -> tour site: one card, then the partner's files and bridge, on the caller's model", LinkingTest.testAllowedCall.bind(null, "gh-to-tours"));
-test("L2 guesthouse -> tour site: the visitor's model is used by both sites", LinkingTest.testVisitorModel.bind(null, "gh-to-tours"));
-test("L3 guesthouse -> tour site: a decline contacts no one", LinkingTest.testDecline.bind(null, "gh-to-tours"));
-test("L5 guesthouse -> tour site: the partner is not offered a call back", LinkingTest.testNoCallBack.bind(null, "gh-to-tours"));
-test("L6 guesthouse -> tour site: a second call is skipped and the partner runs once", LinkingTest.testSecondCallSkipped.bind(null, "gh-to-tours"));
-test("L7 guesthouse -> tour site: a partner missing from allowed_peers is refused", LinkingTest.testPolicyRefusal.bind(null, "gh-to-tours"));
-test("L9 guesthouse -> tour site: a partner that fails validation never runs", LinkingTest.testInvalidPartner.bind(null, "gh-to-tours"));
-test("L4 tour site -> guesthouse: one card, then the partner's files and bridge, on the caller's model", LinkingTest.testAllowedCall.bind(null, "tours-to-gh"));
-test("L2 tour site -> guesthouse: the visitor's model is used by both sites", LinkingTest.testVisitorModel.bind(null, "tours-to-gh"));
-test("L3 tour site -> guesthouse: a decline contacts no one", LinkingTest.testDecline.bind(null, "tours-to-gh"));
-test("L5 tour site -> guesthouse: the partner is not offered a call back", LinkingTest.testNoCallBack.bind(null, "tours-to-gh"));
-test("L6 tour site -> guesthouse: a second call is skipped and the partner runs once", LinkingTest.testSecondCallSkipped.bind(null, "tours-to-gh"));
-test("L7 tour site -> guesthouse: a partner missing from allowed_peers is refused", LinkingTest.testPolicyRefusal.bind(null, "tours-to-gh"));
-test("L9 tour site -> guesthouse: a partner that fails validation never runs", LinkingTest.testInvalidPartner.bind(null, "tours-to-gh"));
+test("L1 fixture caller -> guesthouse facts: one card, then the three facts files and no bridge, on the caller's model", LinkingTest.testAllowedCall.bind(null, "caller-to-gh"));
+test("L2 fixture caller -> guesthouse facts: the visitor's model is used by both sites", LinkingTest.testVisitorModel.bind(null, "caller-to-gh"));
+test("L3 fixture caller -> guesthouse facts: a decline contacts no one", LinkingTest.testDecline.bind(null, "caller-to-gh"));
+test("L5 fixture caller -> guesthouse facts: the facts network is offered no tools", LinkingTest.testNoCallBack.bind(null, "caller-to-gh"));
+test("L6 fixture caller -> guesthouse facts: a second call is skipped and the partner runs once", LinkingTest.testSecondCallSkipped.bind(null, "caller-to-gh"));
+test("L7 fixture caller -> guesthouse facts: a partner missing from allowed_peers is refused", LinkingTest.testPolicyRefusal.bind(null, "caller-to-gh"));
+test("L9 fixture caller -> guesthouse facts: a partner that fails validation never runs", LinkingTest.testInvalidPartner.bind(null, "caller-to-gh"));
+test("L1 fixture caller -> guesthouse main URL: one card, then the partner's files and bridge, on the caller's model", LinkingTest.testAllowedCall.bind(null, "caller-to-gh-main"));
+test("L5 fixture caller -> guesthouse main URL: the partner is not offered a call back", LinkingTest.testNoCallBack.bind(null, "caller-to-gh-main"));
+test("L1 guesthouse -> tour site facts: one card, then the three facts files and no bridge, on the caller's model", LinkingTest.testAllowedCall.bind(null, "gh-to-tours"));
+test("L2 guesthouse -> tour site facts: the visitor's model is used by both sites", LinkingTest.testVisitorModel.bind(null, "gh-to-tours"));
+test("L3 guesthouse -> tour site facts: a decline contacts no one", LinkingTest.testDecline.bind(null, "gh-to-tours"));
+test("L5 guesthouse -> tour site facts: the facts network is offered no tools", LinkingTest.testNoCallBack.bind(null, "gh-to-tours"));
+test("L6 guesthouse -> tour site facts: a second call is skipped and the partner runs once", LinkingTest.testSecondCallSkipped.bind(null, "gh-to-tours"));
+test("L7 guesthouse -> tour site facts: a partner missing from allowed_peers is refused", LinkingTest.testPolicyRefusal.bind(null, "gh-to-tours"));
+test("L9 guesthouse -> tour site facts: a partner that fails validation never runs", LinkingTest.testInvalidPartner.bind(null, "gh-to-tours"));
+test("L4 tour site -> guesthouse facts: one card, then the three facts files and no bridge, on the caller's model", LinkingTest.testAllowedCall.bind(null, "tours-to-gh"));
+test("L2 tour site -> guesthouse facts: the visitor's model is used by both sites", LinkingTest.testVisitorModel.bind(null, "tours-to-gh"));
+test("L3 tour site -> guesthouse facts: a decline contacts no one", LinkingTest.testDecline.bind(null, "tours-to-gh"));
+test("L5 tour site -> guesthouse facts: the facts network is offered no tools", LinkingTest.testNoCallBack.bind(null, "tours-to-gh"));
+test("L6 tour site -> guesthouse facts: a second call is skipped and the partner runs once", LinkingTest.testSecondCallSkipped.bind(null, "tours-to-gh"));
+test("L7 tour site -> guesthouse facts: a partner missing from allowed_peers is refused", LinkingTest.testPolicyRefusal.bind(null, "tours-to-gh"));
+test("L9 tour site -> guesthouse facts: a partner that fails validation never runs", LinkingTest.testInvalidPartner.bind(null, "tours-to-gh"));
+test("L11 the guesthouse's own page never loads its facts network", LinkingTest.testOwnPageSkipsFacts.bind(null, "guesthouse"));
+test("L11 the tour site's own page never loads its facts network", LinkingTest.testOwnPageSkipsFacts.bind(null, "tours"));
 test("L10 fixture caller -> tour site -> guesthouse: each hop asks first, all on the caller's model", LinkingTest.testSecondHop.bind(null, true));
 test("L10 fixture caller -> tour site -> guesthouse: the tour site's own allowed_peers refuses the second hop", LinkingTest.testSecondHop.bind(null, false));
 test("L8 the guesthouse keeps the skill's runtime and rules, and builds clean", LinkingTest.testExampleMatchesSkill.bind(null, "guesthouse"));

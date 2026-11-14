@@ -99,30 +99,49 @@ class LinkingCheck {
 
   /**
    * Each direction: who calls whom, the partner's network URL, the visitor's message and
-   * the request the calling site sends. Each request is under 140 characters.
+   * the request the calling site sends. Each request is under 140 characters. Each site
+   * names its partner's facts network (facts/<network>_facts): one tool-free agent, no
+   * bridge. C9 calls the guesthouse's main network once, so the bridge keeps a check.
    */
   static DIRECTIONS = {
     "caller-to-gh": {
       caller: "caller",
       partner: "guesthouse",
-      partnerUrl: "http://127.0.0.1:8080/tidewhistle_guesthouse",
+      partnerUrl: "http://127.0.0.1:8080/facts/tidewhistle_guesthouse_facts",
+      facts: true,
       message: "Can you ask Tidewhistle Guesthouse whether a step-free room is free for two from 12 to 14 June?",
       request: "Is a step-free room free for two adults from 12 to 14 June, and what would it cost?",
     },
     "gh-to-tours": {
       caller: "guesthouse",
       partner: "tours",
-      partnerUrl: "http://localhost:8081/marrow_point_harbor_tours",
+      partnerUrl: "http://localhost:8081/facts/marrow_point_harbor_tours_facts",
+      facts: true,
       message: "Are there boat trips from the harbor while we stay, from 12 to 14 June?",
       request: "Is there a boat trip for two adults between 12 and 14 June, and what does it cost?",
     },
     "tours-to-gh": {
       caller: "tours",
       partner: "guesthouse",
-      partnerUrl: "http://127.0.0.1:8080/tidewhistle_guesthouse",
+      partnerUrl: "http://127.0.0.1:8080/facts/tidewhistle_guesthouse_facts",
+      facts: true,
       message: "Where can we stay in Marrow Point from 12 to 14 June?",
       request: "Is a room free for two adults from 12 to 14 June, and what would it cost?",
     },
+  };
+
+  /**
+   * C9: the test caller, served naming the guesthouse's main network in place of its
+   * facts network, so the bridge path keeps a browser check.
+   */
+  static MAIN_URL_CASE = {
+    caller: "caller",
+    partner: "guesthouse",
+    partnerUrl: "http://127.0.0.1:8080/tidewhistle_guesthouse",
+    listedUrl: "http://127.0.0.1:8080/facts/tidewhistle_guesthouse_facts",
+    facts: false,
+    message: "Can you ask Tidewhistle Guesthouse whether a step-free room is free for two from 12 to 14 June?",
+    request: "Is a step-free room free for two adults from 12 to 14 June, and what would it cost?",
   };
 
   /**
@@ -791,6 +810,9 @@ class LinkingCheck {
       await this.caseOwnPage(role);
       await this.caseBridgePage(role);
     }
+    if (roles.includes("caller") && roles.includes("guesthouse")) {
+      await this.caseMainUrl();
+    }
     if (this.options.noBridge) {
       await this.caseNoBridge(await this.directionContext(directions[0]));
     }
@@ -805,7 +827,9 @@ class LinkingCheck {
   async directionContext(direction) {
     const spec = direction.spec;
     const caller = await LinkingCheck.readSite(this.served[spec.caller]);
-    const partner = await LinkingCheck.readSite(this.served[spec.partner]);
+    // A facts partner's manifest and files sit in facts/, next to its main manifest.
+    const prefix = spec.facts ? "facts/" : "";
+    const partner = await LinkingCheck.readSite(path.join(this.served[spec.partner], prefix));
     const callerSite = LinkingCheck.SITES[spec.caller];
     const partnerSite = LinkingCheck.SITES[spec.partner];
     return {
@@ -820,10 +844,12 @@ class LinkingCheck {
       partnerOrigin: `http://${partnerSite.host}:${partnerSite.port}`,
       partnerHost: `${partnerSite.host}:${partnerSite.port}`,
       partnerHostname: partnerSite.host,
-      label: caller.labels[spec.partnerUrl] || "",
+      label: caller.labels[spec.listedUrl || spec.partnerUrl] || "",
       callerModel: caller.frontModel,
       partnerModel: partner.frontModel,
-      partnerFile: partner.file,
+      // Paths under the partner's site folder: "facts/..." for a facts network.
+      partnerPrefix: prefix,
+      partnerFile: `${prefix}${partner.file}`,
       partnerAgentTools: ((partner.manifest.actions || {}).agentTools || []).length,
     };
   }
@@ -1101,29 +1127,43 @@ class LinkingCheck {
     expect(checks, context.label !== "" && card.includes(context.label), `the card shows the label "${context.label}"`);
     expect(checks, card.includes(context.partnerHost), `the card shows ${context.partnerHost}`);
     expect(checks, context.spec.request.length < 140 && card.includes(context.spec.request), "the card shows the whole request");
-    const bridge = `${context.partnerOrigin}/bridge/action-bridge.html`;
-    let framed = false;
-    for (const frame of evidence.frames) {
-      if (frame.src === bridge && frame.sandbox === "allow-scripts allow-same-origin") {
-        framed = true;
-      }
-    }
-    expect(checks, framed, `the frame loaded ${bridge} with sandbox "allow-scripts allow-same-origin"`);
     const publicFiles = [
-      "/agent-manifest.json",
+      `/${context.partnerPrefix}agent-manifest.json`,
       `/${context.partnerFile}`,
-      "/links.json",
+      `/${context.partnerPrefix}links.json`,
     ];
     const served = [];
     const other = [];
-    for (const line of evidence.partnerLog) {
-      served.push(line.path);
-      if (!publicFiles.includes(line.path) && !line.path.startsWith("/bridge/") && !line.path.startsWith("/runtime/")) {
-        other.push(line.path);
+    if (context.spec.facts) {
+      // A facts manifest has no actions, so no bridge frame loads, and the partner serves
+      // its three facts files and nothing else.
+      expect(checks, evidence.frames.length === 0 && evidence.polledFrames.length === 0, "no bridge frame");
+      for (const line of evidence.partnerLog) {
+        served.push(line.path);
+        if (!publicFiles.includes(line.path)) {
+          other.push(line.path);
+        }
       }
+      expect(checks, other.length === 0, `the partner served only its three facts files (also: ${other.join(", ")})`);
+    } else {
+      const bridge = `${context.partnerOrigin}/bridge/action-bridge.html`;
+      let framed = false;
+      for (const frame of evidence.frames) {
+        if (frame.src === bridge && frame.sandbox === "allow-scripts allow-same-origin") {
+          framed = true;
+        }
+      }
+      expect(checks, framed, `the frame loaded ${bridge} with sandbox "allow-scripts allow-same-origin"`);
+      for (const line of evidence.partnerLog) {
+        served.push(line.path);
+        if (!publicFiles.includes(line.path) && !line.path.startsWith("/bridge/") && !line.path.startsWith("/runtime/")) {
+          other.push(line.path);
+        }
+      }
+      expect(checks, other.length === 0, `the partner served only its public files, bridge/ and runtime/ (also: ${other.join(", ")})`);
+      publicFiles.push("/bridge/action-bridge.html", "/bridge/agent-manifest.json");
     }
-    expect(checks, other.length === 0, `the partner served only its public files, bridge/ and runtime/ (also: ${other.join(", ")})`);
-    for (const file of publicFiles.concat(["/bridge/action-bridge.html", "/bridge/agent-manifest.json"])) {
+    for (const file of publicFiles) {
       expect(checks, served.includes(file), `the partner served ${file}`);
     }
     let popup = false;
@@ -1178,8 +1218,51 @@ class LinkingCheck {
     const partnerTools = LinkingCheck.websiteTools(partnerChats);
     expect(checks, partnerTools.length === 0, `the partner was offered no website_* tool (${partnerTools.join(", ")})`);
     const answer = evidence.finalAnswer || "";
+    if (context.spec.facts) {
+      expect(checks, partnerChats.length === 1, `the facts network made one model call (${partnerChats.length})`);
+      expect(checks, /^CALLER_FINAL: PARTNER_ANSWER: peer rule no; no-actions note no\. Facts as of \d{4}-\d{2}-\d{2}\./.test(answer), `the partner's dated facts answer, with no peer rule or no-actions note, reached the caller ("${answer.slice(0, 160)}")`);
+      return checks;
+    }
     expect(checks, answer.startsWith("CALLER_FINAL: PARTNER_ANSWER: peer rule yes; no-actions note yes."), `the partner's answer, with the peer rule and the no-actions note, reached the caller ("${answer.slice(0, 160)}")`);
     return checks;
+  }
+
+  /**
+   * C9: the test caller, served naming the guesthouse's main network, calls it once. The
+   * main network loads its bridge and runs with the peer rule, as callers that still name
+   * a main URL get it.
+   */
+  async caseMainUrl() {
+    const spec = LinkingCheck.MAIN_URL_CASE;
+    const copy = path.join(this.out, "sites", "caller_main_url");
+    await cp(this.served.caller, copy, {recursive: true});
+    const caller = await LinkingCheck.readSite(copy);
+    const file = path.join(copy, caller.file);
+    const config = JSON.parse(await readFile(file, "utf8"));
+    for (const agent of config.tools || []) {
+      if (Array.isArray(agent.tools) && agent.tools.includes(spec.listedUrl)) {
+        agent.tools = [spec.partnerUrl];
+      }
+    }
+    const labels = Object.assign({}, config.link_labels || {});
+    labels[spec.partnerUrl] = labels[spec.listedUrl];
+    delete labels[spec.listedUrl];
+    config.link_labels = labels;
+    await writeFile(file, `${JSON.stringify(config, null, 2)}\n`);
+    await LinkingCheck.stopChild(this.servers.get("caller"));
+    await this.startServer("caller", copy);
+    try {
+      const context = await this.directionContext({
+        name: "caller-to-gh-main",
+        spec: spec,
+      });
+      const evidence = await this.visitorTurn(context, LinkingCheck.VISITOR_MODEL, "allow", context.callerUrl);
+      const checks = this.allowedChecks(context, evidence, LinkingCheck.VISITOR_MODEL);
+      await this.record("C9", context.name, LinkingCheck.status(checks), checks, ["the test caller, served naming the guesthouse's main network URL"], evidence);
+    } finally {
+      await LinkingCheck.stopChild(this.servers.get("caller"));
+      await this.startServer("caller", this.served.caller);
+    }
   }
 
   /**

@@ -6,9 +6,11 @@
 //
 // Only the public files get Access-Control-Allow-Origin: *, so other agent sites can read
 // them: agent-manifest.json, each network file the manifest names, links.json,
-// agent-mcp.json and the two .well-known files. runtime/sandbox-worker.js gets its
-// Content-Security-Policy. Nothing is cached, and nothing blocks framing, so other sites
-// can load bridge/action-bridge.html. Stop it with Ctrl+C.
+// agent-mcp.json and the two .well-known files. A network exported from a sub-folder,
+// such as facts/<network>_facts, adds that folder's agent-manifest.json, links.json and
+// network files. runtime/sandbox-worker.js gets its Content-Security-Policy. Nothing is
+// cached, and nothing blocks framing, so other sites can load bridge/action-bridge.html.
+// Stop it with Ctrl+C.
 
 import { appendFileSync } from "node:fs";
 import { readFile, realpath, stat } from "node:fs/promises";
@@ -367,21 +369,93 @@ class SiteServer {
     } catch (error) {
       return paths;
     }
-    const networks = Array.isArray(manifest.networks) ? manifest.networks : [];
-    for (const entry of networks) {
-      const file = entry && typeof entry.hocon === "string" ? entry.hocon : "";
-      // A network file on another host is not served from here.
-      if (file && !/^[a-z][a-z0-9+.-]*:/i.test(file)) {
-        paths.add(`/${file.replace(/^(\.\/|\/)+/, "")}`);
-      }
-    }
+    SiteServer.addNetworkFiles(paths, "/", manifest);
     const protocol = String((manifest.linking || {}).protocol || "");
     const match = protocol.match(/^([a-z][a-z0-9-]*)-link\/v1$/);
     if (match) {
       paths.add(`/.well-known/${match[1]}.json`);
       paths.add(`/.well-known/${match[1]}-agent.json`);
     }
+    await this.addExportFolders(paths, manifest);
     return paths;
+  }
+
+  /**
+   * Add the network files a manifest names, relative to the manifest's folder.
+   *
+   * :param paths: The set of public URL paths, which this adds to.
+   * :param folder: The manifest's folder as a URL path, such as "/" or "/facts/".
+   * :param manifest: The parsed manifest.
+   */
+  static addNetworkFiles(paths, folder, manifest) {
+    const networks = Array.isArray(manifest.networks) ? manifest.networks : [];
+    for (const entry of networks) {
+      const file = entry && typeof entry.hocon === "string" ? entry.hocon : "";
+      // A network file on another host is not served from here.
+      if (!file || /^[a-z][a-z0-9+.-]*:/i.test(file)) {
+        continue;
+      }
+      const relative = file.replace(/^(\.\/|\/)+/, "");
+      // A file named with "./" or "../" inside could leave the manifest's folder, so it
+      // gets no CORS header. A request path never holds such a segment anyway.
+      if (relative.split("/").includes("..") || relative.split("/").includes(".")) {
+        continue;
+      }
+      paths.add(`${folder}${relative}`);
+    }
+  }
+
+  /**
+   * Add the public files of each network the manifest exports from a sub-folder, such as
+   * the facts network at facts/<network>_facts. Callers read that folder's manifest,
+   * links.json and network file, so each needs the CORS header too.
+   *
+   * :param paths: The set of public URL paths, which this adds to.
+   * :param manifest: The site's parsed manifest.
+   */
+  async addExportFolders(paths, manifest) {
+    const linking = manifest.linking || {};
+    const exports = Array.isArray(linking.exports) ? linking.exports : [];
+    for (const entry of exports) {
+      const folder = SiteServer.exportFolder(entry);
+      if (folder === null) {
+        continue;
+      }
+      paths.add(`${folder}agent-manifest.json`);
+      paths.add(`${folder}links.json`);
+      let inner = null;
+      try {
+        inner = JSON.parse(await readFile(path.join(this.root, `.${folder}`, "agent-manifest.json"), "utf8"));
+      } catch (error) {
+        // A missing or broken manifest there answers 404 or its own text; it names no files.
+        continue;
+      }
+      SiteServer.addNetworkFiles(paths, folder, inner);
+    }
+  }
+
+  /**
+   * Return the folder of an exported network's URL, when it is a sub-folder of the site.
+   *
+   * :param entry: One linking.exports entry.
+   * :return: The folder as a URL path, such as "/facts/", or null for a URL at the root,
+   *   on another host, or one that leaves the site.
+   */
+  static exportFolder(entry) {
+    const url = entry !== null && typeof entry === "object" && typeof entry.url === "string" ? entry.url : "";
+    if (!url || url.startsWith("/") || /^[a-z][a-z0-9+.-]*:/i.test(url) || url.includes("?") || url.includes("#")) {
+      return null;
+    }
+    const segments = url.split("/");
+    if (segments.length < 2) {
+      return null;
+    }
+    for (const segment of segments) {
+      if (segment === "" || segment === "." || segment === ".." || segment.includes("\\")) {
+        return null;
+      }
+    }
+    return `/${segments.slice(0, -1).join("/")}/`;
   }
 
   /**

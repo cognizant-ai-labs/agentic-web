@@ -1,12 +1,14 @@
 // Check a partner site's agent network before this site calls it.
 //
 // Usage:
-//   node check_partner.mjs <partner network URL> [--origin <this site's origin>]
+//   node check_partner.mjs <partner network URL> [--origin <this site's origin>] [--today YYYY-MM-DD]
 //
 // It reads only the partner's public files, the way a calling browser reads them: the
 // manifest, the network file, links.json and the action bridge. It checks that each one
 // loads with the headers a browser needs, then prints what the partner's network can
-// reach and what to add to this site. It exits with code 1 when it finds errors.
+// reach and what to add to this site. For a facts network, it checks its shape and date,
+// and with no --origin it also reads the pages and data files the facts came from and
+// says whether they still match. It exits with code 1 when it finds errors.
 
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -15,6 +17,7 @@ import { parseHocon } from "../runtime/hocon.js";
 import { AgentNetwork, parseExternalAgent, validateNetwork } from "../runtime/kernel.js";
 import { resolveUrl } from "../runtime/remote.js";
 import { requiresThirdPartyApproval, safeName } from "../runtime/runner.js";
+import { FactsCheck } from "./facts_check.mjs";
 
 /**
  * Checks one partner network URL with the skill's own runtime.
@@ -53,7 +56,7 @@ export class PartnerCheck {
   /**
    * The usage line, printed after a bad argument.
    */
-  static USAGE = "Usage: node check_partner.mjs <partner network URL> [--origin <this site's origin>]";
+  static USAGE = "Usage: node check_partner.mjs <partner network URL> [--origin <this site's origin>] [--today YYYY-MM-DD]";
 
   /**
    * Store the options, the fetch to use and where to print.
@@ -70,6 +73,8 @@ export class PartnerCheck {
     this.warnings = [];
     // The Origin header for every request: this site's origin, or a stand-in for any site.
     this.origin = options.origin || PartnerCheck.ANY_SITE;
+    // The day a facts network's age is counted to. Tests pass --today.
+    this.today = options.today || FactsCheck.localToday();
   }
 
   /**
@@ -77,17 +82,26 @@ export class PartnerCheck {
    *
    * :param argv: The arguments after the script name.
    * :return: The options object.
-   * :raises Error: When the URL is missing, an option has no value or --origin is not an origin.
+   * :raises Error: When the URL is missing, an option has no value, --origin is not an
+   *   origin or --today is not a date.
    */
   static parseArgs(argv) {
     const options = {
       url: null,
       origin: null,
+      today: null,
     };
     let index = 0;
     while (index < argv.length) {
       const arg = argv[index];
-      if (arg === "--origin") {
+      if (arg === "--today") {
+        const value = argv[index + 1];
+        if (!FactsCheck.isDate(value)) {
+          throw new Error("--today needs a date such as 2026-11-12.");
+        }
+        options.today = value;
+        index += 1;
+      } else if (arg === "--origin") {
         const value = argv[index + 1];
         if (value === undefined) {
           throw new Error("--origin needs a value.");
@@ -235,8 +249,21 @@ export class PartnerCheck {
     const network = await this.readNetwork(entry, target);
     const links = await this.readLinks(target);
     await this.checkBridge(manifest, target);
+    // Two sites on one origin call each other with no consent card (runtime/runner.js,
+    // requiresThirdPartyApproval).
+    if (this.options.origin && this.origin === target.origin) {
+      this.warnings.push("This partner is on this site's own origin, so its calls get no consent card. Link sites only across origins.");
+    }
+    const facts = FactsCheck.isFactsNetwork(entry, network);
+    if (facts) {
+      FactsCheck.checkOrigin(this, entry, target);
+      FactsCheck.checkShape(this, manifest, network);
+      await FactsCheck.checkSources(this, network, target);
+    } else {
+      FactsCheck.pointToFacts(this, manifest, target);
+    }
     if (network !== null) {
-      this.printReach(network, manifest, target, links);
+      this.printReach(network, manifest, target, links, facts);
     }
     if (!this.errors.length) {
       this.printAdditions(manifest, target);
@@ -669,8 +696,9 @@ export class PartnerCheck {
    * :param manifest: The partner's manifest.
    * :param target: The URL's parts from checkUrl.
    * :param links: The partner's bound links from links.json.
+   * :param facts: True when the network is a facts network.
    */
-  printReach(network, manifest, target, links) {
+  printReach(network, manifest, target, links, facts) {
     const front = network.findFrontMan();
     const instructions = String((network.getAgentSpec(front) || {}).instructions || "");
     this.print("");
@@ -678,7 +706,10 @@ export class PartnerCheck {
     this.print("It gets none of the partner's website_* tools, so it answers only from its instructions.");
     // A caller learns little more than this, so the owner can see what the partner can answer.
     this.print(`Its front agent's instructions start: "${PartnerCheck.opening(instructions)}"`);
-    if (!instructions.includes(PartnerCheck.PEER_RULE)) {
+    if (facts) {
+      // A facts network has no site tools to miss, so it needs no peer rule.
+      FactsCheck.printFacts(this, network, instructions);
+    } else if (!instructions.includes(PartnerCheck.PEER_RULE)) {
       this.warnings.push("The partner's front agent has no peer rule. With no website_* tools, the runtime's note tells it to report a missing integration, so it may answer only that.");
     }
     // The runtime's partner context sets the model and step limit (runtime/engine.js, _makeCtx).
@@ -740,10 +771,9 @@ export class PartnerCheck {
     const asks = requiresThirdPartyApproval(ref, target.folder);
     const consent = asks ? " (asks the visitor first)" : " (on the partner's own origin: no consent card)";
     if (kind === "remote") {
-      // The runtime skips a network already in the call chain (runtime/runner.js,
-      // remoteIsInChain), so a call back to the caller shows no card.
-      if (this.options.origin && PartnerCheck.originOf(String(ref)) === this.origin) {
-        return `partner network ${ref} (on this site's origin: if it is this site's own network at a domain root, the runtime skips this call back)`;
+      const back = this.callBack(agentName, String(ref), String(ref), true);
+      if (back !== null) {
+        return `partner network ${ref} (${back})`;
       }
       return `partner network ${ref}${consent}`;
     }
@@ -765,12 +795,97 @@ export class PartnerCheck {
       const bound = Object.hasOwn(links, ref) ? links[ref] : network.getLink(ref);
       if (bound) {
         this.warnings.push(`${agentName} uses link slot "${ref}", which links.json binds to ${bound}. A bound slot allows that origin for the whole page.`);
-        return `link slot ${ref}, bound to ${bound}`;
+        const back = this.callBack(agentName, String(bound), `link slot "${ref}", bound to ${bound}`, false);
+        return back !== null ? `link slot ${ref}, bound to ${bound} (${back})` : `link slot ${ref}, bound to ${bound}`;
       }
       this.warnings.push(`${agentName} uses link slot "${ref}": an unbound slot makes this site's chat ask the visitor for a URL.`);
       return `link slot ${ref}, not bound`;
     }
     return null;
+  }
+
+  /**
+   * Warn when a partner tool leads back into this site. When this site calls the partner,
+   * the partner's model is offered that call. The runtime drops it only for this site's
+   * own network at a domain root, under the host name the URL names (runtime/runner.js,
+   * buildToolTable). It runs only with --origin.
+   *
+   * :param agentName: The partner agent that lists the tool.
+   * :param url: The URL the tool leads to.
+   * :param via: How the tool names it, for the warning.
+   * :param remote: True for a network URL in tools; false for a bound link slot.
+   * :return: A note for the reach line, or null when the URL does not lead into this site.
+   */
+  callBack(agentName, url, via, remote) {
+    if (!this.options.origin) {
+      return null;
+    }
+    const relation = PartnerCheck.relationTo(url, this.origin);
+    if (relation === null) {
+      return null;
+    }
+    if (remote && relation === "same origin" && PartnerCheck.segmentCount(new URL(url).pathname) === 1) {
+      return "on this site's origin: if it is this site's own network at a domain root, the runtime skips this call back";
+    }
+    let outcome = "Allow runs it in this site's visitor's browser, on the visitor's key, if this site publishes a network there";
+    let advice = "Call the partner's facts URL instead: a facts network has no tools, so it cannot call back.";
+    if (relation === "another host name") {
+      outcome = "Allow runs this site's network again from that host name";
+      advice = "Redirect one host name to the other, and use the one the partner names in --origin and in this site's links.";
+    }
+    this.warnings.push(`${agentName} names ${via}, on this site (${relation}). When this site calls the partner, its model is offered that call back: the visitor sees a card for this site, and ${outcome}. ${advice}`);
+    if (relation === "same origin") {
+      return "on this site's origin: the runtime does not skip this call back";
+    }
+    return "under another host name for this site: the runtime does not skip this call back";
+  }
+
+  /**
+   * Say how a URL relates to this site's origin.
+   *
+   * :param url: The URL a partner tool leads to.
+   * :param origin: This site's origin, from --origin.
+   * :return: "same origin", "another host name" (a loopback alias on the same port, or the
+   *   same name with or without "www."), or null for another site.
+   */
+  static relationTo(url, origin) {
+    let target = null;
+    let own = null;
+    try {
+      target = new URL(url);
+      own = new URL(origin);
+    } catch (error) {
+      return null;
+    }
+    if (target.origin === own.origin) {
+      return "same origin";
+    }
+    if (target.protocol !== own.protocol || target.port !== own.port) {
+      return null;
+    }
+    if (PartnerCheck.LOOPBACK_HOSTS.includes(target.hostname) && PartnerCheck.LOOPBACK_HOSTS.includes(own.hostname)) {
+      return "another host name";
+    }
+    if (target.hostname.replace(/^www\./, "") === own.hostname.replace(/^www\./, "")) {
+      return "another host name";
+    }
+    return null;
+  }
+
+  /**
+   * Count the parts of a URL path, such as 2 for "/facts/tours_facts".
+   *
+   * :param pathname: The URL path.
+   * :return: The number of parts that are not empty.
+   */
+  static segmentCount(pathname) {
+    let count = 0;
+    for (const part of pathname.split("/")) {
+      if (part) {
+        count += 1;
+      }
+    }
+    return count;
   }
 
   /**

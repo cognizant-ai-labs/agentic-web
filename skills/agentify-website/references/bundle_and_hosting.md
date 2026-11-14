@@ -19,6 +19,8 @@ The agentified site is a copy of the original site with these additions:
   .well-known/                generated discovery files (see "How others find the site")
   bridge/action-bridge.html   written by the build; other agent sites load the page in a hidden frame
   bridge/agent-manifest.json  written by the build; the bridge's own manifest, with no action module
+  agent-facts.mjs             public facts for other agent sites (templates/agent-facts.mjs); the build reads it
+  facts/                      written by the build: the facts network other agent sites call
   runtime/                    copied unchanged from the skill's runtime/
   tests/                      templates/tests/, filled in for this site
 ```
@@ -236,6 +238,8 @@ If the copy has a README, update it before you finish:
   LLM provider the visitor picks. Fix any line that says no data leaves the page;
 - if it tells readers how to try their own key, both steps from above: delete the saved
   setup, then close the tab;
+- the facts URL, and that its answers are this site's dated public facts, with no
+  availability or bookings;
 - the network URL, and that other agent sites that call it get no site tools, so their
   assistant points to this site's page;
 - if this site calls partners, that a calling site's visitor also gets a card for each
@@ -266,9 +270,16 @@ If the copy has a README, update it before you finish:
 
 Any static host works. So that other sites and tools can read the public files, serve
 these with `Access-Control-Allow-Origin: *`: `agent-manifest.json`,
-`<network>.network.json`, `links.json`, `agent-mcp.json` and the two `.well-known` files.
-Do not add that header to business endpoints. Serve `runtime/sandbox-worker.js` with the
-`Content-Security-Policy` below. If the site is under a subpath, add it to each path.
+`<network>.network.json`, `links.json`, `agent-mcp.json`, the two `.well-known` files,
+and the facts network's `facts/agent-manifest.json`, `facts/<network>_facts.network.json`
+and `facts/links.json`. Never `agent-facts.mjs`. Do not add that header to business
+endpoints. Serve `runtime/sandbox-worker.js` with the `Content-Security-Policy` below. If
+the site is under a subpath, add it to each path.
+
+Run the build with `--check` before you upload, so stale facts never go out. After you
+upload, run `check_partner.mjs` on the facts URL with no `--origin`. A host that rewrites
+pages or scripts, such as one that minifies them or hides email addresses, shows as a
+change there.
 
 Do not send `X-Frame-Options` or a `frame-ancestors` policy for `bridge/`: callers load
 `bridge/action-bridge.html` in a hidden frame. It needs no CORS header. If the site sends a
@@ -290,6 +301,12 @@ On Netlify and compatible hosts, put this in a `_headers` file at the site root:
   Access-Control-Allow-Origin: *
 /.well-known/<protocol_name>-agent.json
   Access-Control-Allow-Origin: *
+/facts/agent-manifest.json
+  Access-Control-Allow-Origin: *
+/facts/<network>_facts.network.json
+  Access-Control-Allow-Origin: *
+/facts/links.json
+  Access-Control-Allow-Origin: *
 /runtime/sandbox-worker.js
   Content-Security-Policy: default-src 'none'; script-src blob:; connect-src 'none'; worker-src 'none'
 ```
@@ -298,7 +315,7 @@ On Apache, put this in `.htaccess`:
 
 ```apache
 <IfModule mod_headers.c>
-  <FilesMatch "^(agent-manifest\.json|<network>\.network\.json|links\.json|agent-mcp\.json|<protocol_name>\.json|<protocol_name>-agent\.json)$">
+  <FilesMatch "^(agent-manifest\.json|<network>\.network\.json|<network>_facts\.network\.json|links\.json|agent-mcp\.json|<protocol_name>\.json|<protocol_name>-agent\.json)$">
     Header always set Access-Control-Allow-Origin "*"
   </FilesMatch>
   <Files "sandbox-worker.js">
@@ -307,11 +324,19 @@ On Apache, put this in `.htaccess`:
 </IfModule>
 ```
 
+`FilesMatch` also matches files with the same names in sub-folders, so it covers
+`facts/agent-manifest.json` and `facts/links.json`, and also gives
+`bridge/agent-manifest.json` the header, which is harmless.
+
 Use HTTPS in production: the visitor's key is stored in the browser for this origin, and
 any script on the page can read it (spec section 4). Load no third-party scripts. The
 spec also asks for a restrictive Content-Security-Policy on the page. If you send one,
 allow the LLM router in `connect-src` and each partner's origin in `connect-src` and
-`frame-src`, then check the chat in a browser.
+`frame-src`, then check the chat in a browser. Each partner call fetches the partner's
+files from the visitor's browser, with this site's origin as `Origin` and, under the
+default referrer policy, as `Referer`. Keep that default, or send `Referrer-Policy:
+strict-origin-when-cross-origin`: a looser policy sends the page's full URL, query
+included, to every partner host.
 
 ## How others find the site
 

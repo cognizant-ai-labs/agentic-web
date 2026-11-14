@@ -86,7 +86,10 @@ Tell the user this before building, so they can decide whether a companion is us
    parsed `site-content.json` to `ContentActions.useSnapshot()`, because Node's `fetch`
    cannot read files. Set `READ_ACTION` to `search_site_content` and give each call to
    it a `query`. Delete the write and irreversible tests unless the companion has such
-   actions, and check that a search returns a known page.
+   actions, and check that a search returns a known page. Delete the facts export from
+   `agent-manifest.json`, and write no `agent-facts.mjs` or `tests/facts.test.mjs`. The
+   build would date the facts on the build day, not the crawl day, so callers would read
+   the snapshot's facts as current. The build then prints its "No facts network" note.
 
 ## Keeping it current
 

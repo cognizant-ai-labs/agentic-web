@@ -2,6 +2,7 @@ import { Calendar } from "./calendar.js";
 import { FareCalculator } from "./fare-calculator.js";
 import { GoodToKnow } from "./good-to-know.js";
 import { TourData } from "./tour-data.js";
+import { TourFacts } from "./tour-facts.js";
 import { TripBook } from "./trip-book.js";
 
 /**
@@ -103,16 +104,8 @@ export class ToursPage {
    * :return: how it travels, its prices, days and times, ages and dogs, as text
    */
   static tourText(tour) {
-    // A tour with a minimum age takes no children under 4, so it has no free tickets.
-    const under4s = tour.minAge > 0 ? "" : ", under 4s free";
-    return {
-      travel: tour.vessel ? `on the ${tour.vessel}` : "on foot",
-      prices: `Adults ${FareCalculator.money(tour.adultPrice)}, `
-        + `children ${FareCalculator.money(tour.childPrice)}${under4s}.`,
-      runs: `Runs ${Calendar.describeDays(tour.days)} at ${Calendar.describeTimes(tour.times)}.`,
-      ages: tour.minAge > 0 ? `Ages ${tour.minAge} and over.` : "All ages.",
-      dogs: tour.dogsWelcome ? "Dogs on a lead welcome." : "No dogs, but assistance dogs are welcome.",
-    };
+    // The words live in a page-free module, so the facts for other agent sites match the card.
+    return TourFacts.tourText(tour);
   }
 
   /**

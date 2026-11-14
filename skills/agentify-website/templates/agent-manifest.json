@@ -46,6 +46,14 @@
           "<front_agent_name>"
         ],
         "url": "<network_name>"
+      },
+      {
+        "network": "<network_name>_facts",
+        "front_man": "facts_assistant",
+        "aliases": [
+          "<network_name>_facts"
+        ],
+        "url": "facts/<network_name>_facts"
       }
     ],
     "imports": [],

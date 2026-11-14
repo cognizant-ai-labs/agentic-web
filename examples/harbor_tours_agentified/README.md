@@ -104,9 +104,9 @@ this page for times, places and reservations.
 
 ## Linked site
 
-The assistant asks Tidewhistle Guesthouse what it offers through its network at
-`http://127.0.0.1:8080/tidewhistle_guesthouse`. Serve the guesthouse from the
-repository root with:
+The assistant asks Tidewhistle Guesthouse about rooms through its facts network at
+`http://127.0.0.1:8080/facts/tidewhistle_guesthouse_facts`. Serve the guesthouse
+from the repository root with:
 
 ```shell
 node skills/agentify-website/scripts/serve_site.mjs examples/guesthouse_agentified --port 8080 --open-as 127.0.0.1
@@ -118,16 +118,25 @@ requests.
 
 Before anything is sent, a card in the chat asks you to allow the contact. It
 names Tidewhistle Guesthouse, shows its host and the first 140 characters of the
-request. A request is one or two short sentences, such as "What do you offer,
-and how do we book a stay?". The assistant is told never to put names,
+request. A request is one or two short sentences with exact dates and weekdays,
+the party size and children's ages, such as "Rooms for two adults, Friday 12 to
+Sunday 14 June: what do they cost?". The assistant is told never to put names,
 emails, phone numbers or booking codes in it, but the runtime does not filter
-the request, so check it on the card. The guesthouse's network then runs in
-this browser, on your key and model, with none of the guesthouse's own site
-tools, so it can say what it offers and how to book, but not which rooms are
-free or what they cost. Book rooms with the guesthouse directly.
+the request, so check it on the card. The guesthouse's facts network then runs
+in this browser, on your key and model, as one model call with no tools. It
+answers from the guesthouse's published facts, with their date: rooms, rates and
+house policies. It cannot see which rooms are free or book one, so book rooms
+with the guesthouse directly.
+
+Other agent sites can call this site's facts network at
+`http://localhost:8081/facts/marrow_point_harbor_tours_facts`. It answers from
+the trips, times, prices and rules, with their date, and cannot see places left
+or reserve. They can also call this network at
+`http://localhost:8081/marrow_point_harbor_tours`, with none of this site's
+functions.
 
 The `127.0.0.1` address works only on this machine. Before hosting, put the
-guesthouse's https network URL in the `.hocon` file's `tools` and
+guesthouse's https facts URL in the `.hocon` file's `tools` and
 `link_labels`, and its origin in `allowed_peers` in `agent-manifest.json`, then
 build again.
 
@@ -144,9 +153,13 @@ node --test "examples/harbor_tours_agentified/tests/*.test.mjs"
 With both sites served, check the link both ways:
 
 ```shell
-node skills/agentify-website/scripts/check_partner.mjs http://127.0.0.1:8080/tidewhistle_guesthouse --origin http://localhost:8081
+node skills/agentify-website/scripts/check_partner.mjs http://127.0.0.1:8080/facts/tidewhistle_guesthouse_facts --origin http://localhost:8081
 node skills/agentify-website/scripts/check_partner.mjs http://localhost:8081/marrow_point_harbor_tours
+node skills/agentify-website/scripts/check_partner.mjs http://localhost:8081/facts/marrow_point_harbor_tours_facts
 ```
+
+The last check also compares the live pages and data with this site's facts, so
+run it again after each upload.
 
 The tests use the real runtime and page code with a scripted model. They call no
 LLM provider.
@@ -154,8 +167,10 @@ LLM provider.
 ## Hosting
 
 Serve `agent-manifest.json`, `marrow_point_harbor_tours.network.json`,
-`links.json`, `agent-mcp.json`, `.well-known/nsdeploy.json` and
-`.well-known/nsdeploy-agent.json` with `Access-Control-Allow-Origin: *`. Serve
+`links.json`, `agent-mcp.json`, `.well-known/nsdeploy.json`,
+`.well-known/nsdeploy-agent.json`, `facts/agent-manifest.json`,
+`facts/marrow_point_harbor_tours_facts.network.json` and `facts/links.json` with
+`Access-Control-Allow-Origin: *`, and never `agent-facts.mjs`. Serve
 `runtime/sandbox-worker.js` with
 `Content-Security-Policy: default-src 'none'; script-src blob:; connect-src 'none'; worker-src 'none'`.
 Do not block framing for `bridge/`: other agent sites load
@@ -183,6 +198,8 @@ guesthouse's origin in `connect-src` and `frame-src`.
 - `js/tour-data.js`: tours, booking limits, harbor dues and existing
   reservations.
 - `js/good-to-know.js`: reads the Good to know page for the assistant.
+- `js/tour-facts.js`: words each tour's facts as its trip card does. It loads
+  without a page, so the trip cards and `agent-facts.mjs` use the same words.
 - `site.js`: boots the assistant and shows its confirmation dialogs.
 - `site-actions.js`: the site's operations as the assistant's `website_*`
   tools.
@@ -193,6 +210,11 @@ guesthouse's origin in `connect-src` and `frame-src`.
 - `agent-mcp.json`, `.well-known/`: discovery files, built from the manifest.
 - `bridge/`: the page other agent sites load in a hidden frame, built by the
   build script. It shares no actions.
+- `agent-facts.mjs`: the public facts for other agent sites: the trips from
+  `js/tour-facts.js`, and the page parts marked `data-agent-facts` in
+  `index.html` and `policies.html`.
+- `facts/`: the facts network other agent sites call, built from
+  `agent-facts.mjs`. Do not edit it by hand.
 - `runtime/`: the browser runtime, copied unchanged from the skill.
 - `tests/`: Node tests for the network, the actions and the dialogs.
 

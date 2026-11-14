@@ -67,6 +67,14 @@ named `website_<name>` (`runtime/runner.js`).
    would send a real request to whatever runs there. Under Node the action then returns
    an `unknown` receipt, and a test of its result checks nothing. Check it in a browser
    (see "Check without a key" in `bundle_and_hosting.md`).
+   To give a page-only fact to other agent sites as well, mark its part with
+   `data-agent-facts="<topic>"` and list its page in `agent-facts.mjs` ("Facts for
+   callers" in `linking.md`). A marked part holds only plain text markup, has no class or
+   style, and is not inside a form. Keep the describers that word catalog facts, such as a
+   shop's product cards, in a page-free module, as static methods, and have the page's own
+   cards use them too. Then the page, the state reader and `agent-facts.mjs` say the same
+   thing. The build runs `agent-facts.mjs` in Node, so that module must load without a
+   page.
 8. **Return dates and amounts the model can use.** The model has no clock. If the site
    uses dates, put today's date in the state. Work it out, and any date range such as
    the bookable days, from the clock each time the state is read, not from values the

@@ -44,8 +44,10 @@ and check it before the checkpoint (step 1 of "Call a partner site" in
 For a public URL without source, follow `references/live_url_mode.md` first.
 
 **Checkpoint.** Show the user the inventory and the proposed design (agents, tools,
-the effect of each action, the "not supported" list, and each partner site it will ask,
-with what it asks and what it can answer from here) and ask them to confirm. Pay
+the effect of each action, the "not supported" list, each partner site it will ask, with
+what it asks and what it can answer from here, and the public facts it will publish for
+other agent sites: the marked page parts and the `dataFacts()` lines of `agent-facts.mjs`)
+and ask them to confirm. Pay
 attention to which actions are `irreversible`, since `read` and `write` tools run without
 a dialog. Skip the checkpoint only if the user said to proceed without asking.
 
@@ -75,9 +77,9 @@ Pick `<out>` with the user. The default is a sibling folder named `<site>_agenti
 If `<out>` already exists, ask the user whether to delete it or pick another folder.
 Do not copy into it: `cp -R` puts the new copy inside it and keeps the old files.
 Never change the original site or the runtime files. If the site already has `site.js`,
-`site-actions.js`, `agent-manifest.json`, `agent-mcp.json`, `links.json`, a `.well-known/`
-discovery file, `bridge/`, `runtime/` or `tests/`, ask the user first: the skill writes
-files with those names. If the copy has a README, update it before you finish, as "The
+`site-actions.js`, `agent-facts.mjs`, `agent-manifest.json`, `agent-mcp.json`,
+`links.json`, a `.well-known/` discovery file, `bridge/`, `facts/`, `runtime/` or
+`tests/`, ask the user first: the skill writes files with those names. If the copy has a README, update it before you finish, as "The
 README" in `references/bundle_and_hosting.md` says.
 
 ### 4. Expose the site's operations
@@ -100,7 +102,10 @@ Follow `references/site_actions.md`:
 
 Copy `templates/network.hocon` to `<out>/<network>.hocon`, and
 `templates/agent-manifest.json` and `templates/links.json` to `<out>/`. The build writes
-the `bridge/` folder that other agent sites load; do not edit it. If the site calls
+the `bridge/` folder that other agent sites load; do not edit it. Write
+`<out>/agent-facts.mjs` from `templates/agent-facts.mjs` and mark the page parts it quotes
+("Facts for callers" in `references/linking.md`); the build writes `facts/`, the network
+other agent sites call. If the site calls
 partner sites, follow "Call a partner site" in `references/linking.md`; otherwise delete
 the template's partner parts. Replace every `<...>` and `TODO`. The network name is the
 `.hocon` file name and must be the same everywhere. Use the protocol name in
@@ -114,7 +119,8 @@ This writes `<out>/<network>.network.json` with the runtime's own parser, runs t
 runtime's validator, and checks for leftover `<...>` and `TODO` markers, demo mode, AAOSA,
 agents nothing can call, agents with no model, oversized instructions, unsupported tools,
 unused or unlisted `website_*` tools, manifest mismatches, a missing or misplaced action
-bridge, partner URLs the runtime would refuse, and partners with no consent-card label.
+bridge, partner URLs the runtime would refuse, partners with no consent-card label, and
+stale, hidden or unclear facts for callers and old files in `facts/`.
 It also writes the discovery files, which copy parts of the manifest: `agent-mcp.json`,
 `.well-known/<protocol_name>.json` and `.well-known/<protocol_name>-agent.json`. It prints
 the tools the runtime adds to every agent, which the `tools` lists do not show. Fix every
@@ -164,7 +170,9 @@ partner. Unlike `python3 -m http.server`, the server sends the CORS header on th
 files, so other sites can call this one. For each partner, run
 `node SKILL_DIR/scripts/check_partner.mjs <partner network URL> --origin <this site's origin>`,
 and run it on this site's own network URL with no `--origin` ("Callers" in "Check it" in
-`references/linking.md`). To check a chat form, a choice list, the confirmation dialog
+`references/linking.md`). If the site publishes facts, run it on its facts URL too, and
+again after each upload: it then fails when the live pages or data no longer match the
+facts. To check a chat form, a choice list, the confirmation dialog
 and the consent card without a key, use the console check in "Check without a key" in
 `references/bundle_and_hosting.md`.
 
@@ -189,8 +197,10 @@ Tell the user:
   in `references/bundle_and_hosting.md`);
 - the network (agents and their tools) and the actions (name, effect, wrapped function);
 - the network URL (the folder that holds `agent-manifest.json`, then the network name);
-  what other agent sites get when they call it (no site tools; the assistant points to
-  this site's page; their visitor also gets a card for each partner this site calls);
+  what other agent sites get when they call it: from its facts URL, the facts network's
+  dated public facts, with the URL and date; from its main URL, no site tools, the
+  assistant points to this site's page, and their visitor also gets a card for each
+  partner this site calls;
   and each partner it calls, with what its requests contain and what the partner's
   network can reach, from `check_partner.mjs`;
 - each partner URL on `localhost` or `127.0.0.1`, which works only for local checks, and
@@ -204,8 +214,8 @@ Tell the user:
     allow, so a model that follows text in a partner's answer could change the page's
     state without asking;
   - every agent can see every `website_*` tool;
-  - callers get no `website_*` tools, so live availability and bookings stay on the
-    site's own page;
+  - callers get this site's dated public facts from its facts URL, but no `website_*`
+    tools, so live availability and bookings stay on the site's own page;
   - each partner call runs on the visitor's key after the visitor agrees, at most 4 per
     message and 1 per partner, and costs more than the card's token estimate;
   - a call over a limit still shows its card first, and allowing it only skips the call;
@@ -215,9 +225,10 @@ Tell the user:
     gets all of it;
   - the consent card shows the partner's host without its scheme, and "Always allow"
     covers that host until the page is reloaded;
-  - under a subpath or another host name, a partner that names this site may show the
-    visitor a card for this site; under a subpath, allowing it only skips the call, and
-    under another host name it runs this network once more;
+  - a partner that names a URL into this site may show the visitor a card for this site:
+    under a subpath, allowing it only skips the call; under another host name, or for this
+    site's facts network, it runs that network once more on the visitor's key ("Calls
+    back" in `references/linking.md`); a partner's facts URL cannot call back;
   - the LLM provider must allow CORS;
   - the network file, including instructions, is public.
 
@@ -225,12 +236,13 @@ Tell the user:
 
 - Never fabricate. No `demo_mode`, and no invented prices, times, IDs or statuses.
 - Do not copy site data into instructions, and do not paste page state into prompts.
-  Agents read state with a read action.
+  Agents read state with a read action. The one exception is the facts network, which the
+  build writes from `agent-facts.mjs` and the marked parts, and which only callers load.
 - When unsure whether an action can be undone, make it `irreversible`.
 - Keep the site's business rules in the site's own functions. The actions module only
   wraps them.
-- Do not edit `runtime/`, `bridge/`, `<network>.network.json` or the discovery files by
-  hand.
+- Do not edit `runtime/`, `bridge/`, `facts/`, `<network>.network.json` or the discovery
+  files by hand.
 - Do not put keys, tokens or personal data in any published file.
 - Never put a visitor's name, email, phone number or booking code in a request to a
   partner site.
@@ -247,8 +259,11 @@ Tell the user:
 | `references/linking.md` | Calls between agent sites: the bridge, the peer rule, partner sites, checks |
 | `runtime/` | Browser runtime; copy into each site unchanged (see `runtime/README.md`) |
 | `scripts/build_network.mjs` | HOCON → `.network.json`, with validation and checks |
+| `scripts/facts_network.mjs` | Writes the facts network from `agent-facts.mjs` (used by the build) |
+| `scripts/marked_text.mjs` | Reads the page parts marked `data-agent-facts` (used by the build and checker) |
 | `scripts/serve_site.mjs` | Local server that sends the CORS header on the public files |
 | `scripts/check_partner.mjs` | Checks a partner site's network and prints what it can reach |
+| `scripts/facts_check.mjs` | The checker's facts-network checks, and the check after upload |
 | `templates/network.hocon` | Network skeleton with shared grounding and CRUSE rules |
 | `templates/agent-manifest.json`, `links.json` | Public bundle files |
 | `templates/site-actions.js` | Actions module for a site you can change |
@@ -256,4 +271,6 @@ Tell the user:
 | `templates/site.js`, `assistant-section.html`, `assistant.css` | Mounting the assistant in the page |
 | `templates/standalone-index.html` | Page for a companion assistant |
 | `templates/bridge/action-bridge.html` | The build copies it into `<out>/bridge/`; other agent sites load it |
-| `templates/tests/` | Node tests with a DOM stand-in and a scripted model |
+| `templates/agent-facts.mjs` | The site's public facts for other agent sites |
+| `templates/facts-network.hocon` | The build fills it to write `<out>/facts/`; do not copy it |
+| `templates/tests/` | Node tests with a DOM stand-in and a scripted model; `facts.test.mjs` checks the facts |

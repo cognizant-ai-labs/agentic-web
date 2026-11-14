@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
-import { cp, mkdtemp, readFile, rm } from "node:fs/promises";
+import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { createInterface } from "node:readline";
@@ -482,7 +482,7 @@ class CheckPartnerTest {
 
   /**
    * With --origin set to the partner's own origin, a manifest with no CORS header passes,
-   * so the check warns that it checked no CORS header.
+   * so the check warns that it checked no CORS header, and that the calls get no card.
    */
   static async testOwnOriginWarns() {
     const server = new BareServer({});
@@ -494,6 +494,7 @@ class CheckPartnerTest {
       assert.equal(result.code, 0, result.out);
       assert.deepEqual(result.findings, [
         "WARNING: --origin is the partner's own origin, so no CORS header is checked. Leave out --origin, or pass another site's origin.",
+        "WARNING: This partner is on this site's own origin, so its calls get no consent card. Link sites only across origins.",
       ]);
     } finally {
       await server.stop();
@@ -823,6 +824,278 @@ class CheckPartnerTest {
       });
     }
   }
+
+  /**
+   * The fixture site with facts, for the facts checks.
+   */
+  static FACTS_FIXTURE = fileURLToPath(new URL("./fixtures/facts_site/", import.meta.url));
+
+  /**
+   * Build a copy of the facts fixture, dated 2026-11-12, and serve it with serve_site.mjs.
+   *
+   * :return: The copy's folder, the server process and the URL it printed.
+   */
+  static async buildAndServeFacts() {
+    const folder = await mkdtemp(path.join(os.tmpdir(), "facts-partner-"));
+    await cp(CheckPartnerTest.FACTS_FIXTURE, folder, { recursive: true });
+    await cp(path.join(CheckPartnerTest.SKILL, "runtime"), path.join(folder, "runtime"), { recursive: true });
+    const built = spawnSync(process.execPath, [
+      path.join(CheckPartnerTest.SKILL, "scripts", "build_network.mjs"),
+      path.join(folder, "seaside_desk.hocon"),
+      "--manifest",
+      path.join(folder, "agent-manifest.json"),
+      "--today",
+      "2026-11-12",
+    ], { encoding: "utf8" });
+    assert.equal(built.status, 0, built.stdout);
+    const child = spawn(process.execPath, [path.join(CheckPartnerTest.SKILL, "scripts", "serve_site.mjs"), folder, "--port", "0"], {
+      stdio: [
+        "ignore",
+        "pipe",
+        "ignore",
+      ],
+    });
+    for await (const line of createInterface({ input: child.stdout })) {
+      const match = line.match(/^Open (http:\/\/\S+)$/);
+      if (match) {
+        return {
+          folder: folder,
+          child: child,
+          url: match[1],
+        };
+      }
+    }
+    throw new Error("serve_site.mjs printed no URL.");
+  }
+
+  /**
+   * Stop a served facts site and delete its copy.
+   *
+   * :param served: The value buildAndServeFacts returned, or null.
+   */
+  static async stopFacts(served) {
+    if (served === null) {
+      return;
+    }
+    if (served.child.exitCode === null && served.child.signalCode === null) {
+      const exited = once(served.child, "exit");
+      served.child.kill();
+      await exited;
+    }
+    await rm(served.folder, {
+      recursive: true,
+      force: true,
+    });
+  }
+
+  /**
+   * Replace text in a served copy's file. The text must be there.
+   *
+   * :param folder: The copy.
+   * :param file: The file, relative to the copy.
+   * :param from: The text to replace.
+   * :param to: The new text.
+   */
+  static async editServed(folder, file, from, to) {
+    const target = path.join(folder, file);
+    const text = await readFile(target, "utf8");
+    assert.ok(text.includes(from), `${file} has no ${JSON.stringify(from)}.`);
+    await writeFile(target, text.replaceAll(from, to));
+  }
+
+  /**
+   * After upload: a facts URL with no --origin prints its date, age and size, needs no
+   * peer rule, and compares the live pages and data with the facts. An edited page or
+   * data file, uploaded without a rebuild, fails the check.
+   */
+  static async testFactsAfterUpload() {
+    let served = null;
+    try {
+      served = await CheckPartnerTest.buildAndServeFacts();
+      const factsUrl = `${served.url}facts/seaside_desk_facts`;
+      const fresh = await CheckPartnerTest.check([factsUrl, "--today", "2026-12-02"], fetch);
+      assert.equal(fresh.code, 0, fresh.out);
+      assert.deepEqual(fresh.findings, []);
+      assert.match(fresh.out, /It is the partner's facts network: it answers only from the facts its site published, as of 2026-11-12 \(20 days ago\), in one model call of about \d+ tokens\./);
+      assert.ok(fresh.out.includes("Compared with the live site: 3 quoted page parts and 3 data files match the facts."), fresh.out);
+      assert.ok(fresh.lines.includes("  Tool name the model sees: facts_seaside_desk_facts"), fresh.out);
+      await CheckPartnerTest.editServed(served.folder, "policies.html", "Dogs on a lead are welcome.", "Dogs are welcome.");
+      await CheckPartnerTest.editServed(served.folder, "js/desk-data.js", "close: \"5 pm\"", "close: \"6 pm\"");
+      const stale = await CheckPartnerTest.check([factsUrl], fetch);
+      assert.equal(stale.code, 1, stale.out);
+      assert.deepEqual(stale.findings, [
+        "ERROR: The facts are out of date with the live site: policies.html: the part \"dogs\" reads differently now; js/desk-data.js has changed. Rebuild with build_network.mjs and upload facts/ again. A host that rewrites pages or scripts, such as one that minifies them or hides email addresses, also shows as a change here.",
+      ]);
+      // A caller cannot fix the partner's files, so with --origin the check does not compare.
+      const caller = await CheckPartnerTest.check([factsUrl, "--origin", CheckPartnerTest.CALLER], fetch);
+      assert.equal(caller.code, 0, caller.out);
+      assert.deepEqual(caller.findings, []);
+    } finally {
+      await CheckPartnerTest.stopFacts(served);
+    }
+  }
+
+  /**
+   * A main URL whose site also publishes facts points to the facts URL: as a warning to a
+   * caller, and as a note on the site's own check.
+   */
+  static async testMainUrlPointsToFacts() {
+    let served = null;
+    try {
+      served = await CheckPartnerTest.buildAndServeFacts();
+      const factsUrl = `${served.url}facts/seaside_desk_facts`;
+      const caller = await CheckPartnerTest.check([`${served.url}seaside_desk`, "--origin", CheckPartnerTest.CALLER], fetch);
+      assert.equal(caller.code, 0, caller.out);
+      assert.deepEqual(caller.findings, [
+        `WARNING: This partner publishes a facts network at ${factsUrl}. Call that URL: it answers from the partner's dated public facts, in one model call with no bridge, and it cannot call back into this site.`,
+      ]);
+      const own = await CheckPartnerTest.check([`${served.url}seaside_desk`], fetch);
+      assert.equal(own.code, 0, own.out);
+      assert.ok(own.lines.includes(`This site also publishes a facts network at ${factsUrl}. Check it too: node check_partner.mjs ${factsUrl}`), own.out);
+    } finally {
+      await CheckPartnerTest.stopFacts(served);
+    }
+  }
+
+  /**
+   * A facts network that could run anything but one tool-free agent fails: agent tools,
+   * a cruse block, or more than two steps. So does one with actions.
+   */
+  static async testFactsShapeFails() {
+    const manifest = {
+      brand: "Harbor Tours",
+      networks: [
+        {
+          name: "harbor_tours_facts",
+          front_man: "facts_assistant",
+          hocon: "./harbor_tours_facts.network.json",
+          tags: [
+            "public-facts",
+          ],
+        },
+      ],
+    };
+    const network = {
+      metadata: {
+        facts_as_of: "2026-11-12",
+      },
+      llm_config: {
+        model_name: "gpt-4.1-mini",
+      },
+      max_steps: 12,
+      cruse: {},
+      tools: [
+        {
+          name: "facts_assistant",
+          function: {
+            description: "Answers from Harbor Tours' facts.",
+          },
+          instructions: "You answer for Harbor Tours when another website's assistant asks for its visitor.",
+          tools: ["https://other.example/other_network"],
+        },
+      ],
+    };
+    const routes = {
+      "/facts/agent-manifest.json": CheckPartnerTest.json(manifest, true),
+      "/facts/harbor_tours_facts.network.json": CheckPartnerTest.json(network, true),
+      "/facts/links.json": CheckPartnerTest.json({}, true),
+    };
+    const served = await CheckPartnerTest.serveAndCheck(routes, "facts/harbor_tours_facts");
+    try {
+      const result = served.result;
+      assert.equal(result.code, 1, result.out);
+      assert.ok(result.findings.includes("ERROR: A facts network must have no actions, coded tools, agent tools or cruse block, and max_steps 2 at most: a caller would run them on its visitor's key. Found: a cruse block; max_steps 12; tools on facts_assistant: https://other.example/other_network."), result.out);
+    } finally {
+      await served.server.stop();
+    }
+    manifest.actions = {
+      version: 1,
+    };
+    network.max_steps = 2;
+    delete network.cruse;
+    network.tools[0].tools = [];
+    // The routes hold JSON text, so serve the changed copies again.
+    routes["/facts/agent-manifest.json"] = CheckPartnerTest.json(manifest, true);
+    routes["/facts/harbor_tours_facts.network.json"] = CheckPartnerTest.json(network, true);
+    const withActions = await CheckPartnerTest.serveAndCheck(routes, "facts/harbor_tours_facts");
+    try {
+      assert.ok(withActions.result.findings.includes("ERROR: A facts network must have no actions, coded tools, agent tools or cruse block, and max_steps 2 at most: a caller would run them on its visitor's key. Found: actions in the manifest."), withActions.result.out);
+    } finally {
+      await withActions.server.stop();
+    }
+  }
+
+  /**
+   * A facts manifest that names its network file on another origin fails: a caller
+   * fetches that file with no card for that origin.
+   */
+  static async testFactsFileOnAnotherOriginFails() {
+    const manifest = {
+      brand: "Harbor Tours",
+      networks: [
+        {
+          name: "harbor_tours_facts",
+          front_man: "facts_assistant",
+          hocon: "https://other.example/harbor_tours_facts.network.json",
+          tags: [
+            "public-facts",
+          ],
+        },
+      ],
+    };
+    const network = {
+      metadata: {
+        facts_as_of: "2026-11-12",
+      },
+      max_steps: 2,
+      tools: [
+        {
+          name: "facts_assistant",
+          function: {
+            description: "Answers from Harbor Tours' facts.",
+          },
+          instructions: "You answer for Harbor Tours when another website's assistant asks for its visitor.",
+          tools: [],
+        },
+      ],
+    };
+    const routes = {
+      "/facts/agent-manifest.json": CheckPartnerTest.json(manifest, true),
+      "/harbor_tours_facts.network.json": CheckPartnerTest.json(network, true),
+      "/facts/links.json": CheckPartnerTest.json({}, true),
+    };
+    const calls = [];
+    const result = await CheckPartnerTest.check(["https://tours.example/facts/harbor_tours_facts", "--origin", CheckPartnerTest.CALLER], CheckPartnerTest.stubFetch.bind(null, routes, calls));
+    assert.equal(result.code, 1, result.out);
+    assert.ok(result.findings.includes("ERROR: The facts network's file comes from another origin: https://other.example/harbor_tours_facts.network.json. Callers fetch it with no card for that origin, so keep the file in facts/ next to its manifest."), result.out);
+  }
+
+  /**
+   * With --origin, each partner tool that leads back into this site warns, except this
+   * site's own network at a domain root, which the runtime skips.
+   */
+  static async testCallBacksIntoThisSiteWarn() {
+    const network = CheckPartnerTest.network();
+    network.tools[0].tools = [
+      `${CheckPartnerTest.CALLER}/visitor_desk`,
+      `${CheckPartnerTest.CALLER}/facts/visitor_desk_facts`,
+      "http://127.0.0.1:8082/visitor_desk",
+    ];
+    const routes = await CheckPartnerTest.partnerRoutes("skill", CheckPartnerTest.manifest("skill"), network);
+    const served = await CheckPartnerTest.serveAndCheck(routes, "harbor_tours");
+    try {
+      const result = served.result;
+      assert.equal(result.code, 0, result.out);
+      assert.ok(result.lines.includes(`      partner network ${CheckPartnerTest.CALLER}/visitor_desk (on this site's origin: if it is this site's own network at a domain root, the runtime skips this call back)`), result.out);
+      assert.ok(result.lines.includes(`      partner network ${CheckPartnerTest.CALLER}/facts/visitor_desk_facts (on this site's origin: the runtime does not skip this call back)`), result.out);
+      assert.deepEqual(result.findings, [
+        `WARNING: tours_assistant names ${CheckPartnerTest.CALLER}/facts/visitor_desk_facts, on this site (same origin). When this site calls the partner, its model is offered that call back: the visitor sees a card for this site, and Allow runs it in this site's visitor's browser, on the visitor's key, if this site publishes a network there. Call the partner's facts URL instead: a facts network has no tools, so it cannot call back.`,
+        "WARNING: tours_assistant names http://127.0.0.1:8082/visitor_desk, on this site (another host name). When this site calls the partner, its model is offered that call back: the visitor sees a card for this site, and Allow runs this site's network again from that host name. Redirect one host name to the other, and use the one the partner names in --origin and in this site's links.",
+      ]);
+    } finally {
+      await served.server.stop();
+    }
+  }
 }
 
 test("a good partner passes and prints the lines to paste", CheckPartnerTest.testGoodPartnerPasses);
@@ -847,3 +1120,8 @@ test("a network that fails validation fails", CheckPartnerTest.testInvalidNetwor
 test("bad partner URLs fail before any fetch", CheckPartnerTest.testBadUrlsFail);
 test("a partner that is not running fails with that reason", CheckPartnerTest.testPartnerNotRunningFails);
 test("the built and served fixture passes as a command", CheckPartnerTest.testBuiltAndServedFixturePasses);
+test("after upload, a facts URL compares the live site with its facts", CheckPartnerTest.testFactsAfterUpload);
+test("a main URL with a facts network points to the facts URL", CheckPartnerTest.testMainUrlPointsToFacts);
+test("a facts network with tools, a cruse block, more steps or actions fails", CheckPartnerTest.testFactsShapeFails);
+test("a facts network file on another origin fails", CheckPartnerTest.testFactsFileOnAnotherOriginFails);
+test("call backs into this site warn, except its own network at a domain root", CheckPartnerTest.testCallBacksIntoThisSiteWarn);

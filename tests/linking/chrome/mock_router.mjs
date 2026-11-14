@@ -37,6 +37,13 @@ export class MockRouter {
   static NO_ACTIONS_NOTE = "No browser actions are registered for this network";
 
   /**
+   * The heading of a facts network's facts (templates/facts-network.hocon). A partner
+   * answer adds the facts' date only when its prompt has them, so a main network's answer
+   * reads as before.
+   */
+  static FACTS_HEADER = "PUBLIC FACTS (";
+
+  /**
    * The models GET /v1/models lists. The page's settings refuse a model that is not listed.
    */
   static MODELS = [
@@ -168,6 +175,11 @@ export class MockRouter {
     record.tools = toolNames;
     record.peerRule = system.includes(MockRouter.PEER_RULE);
     record.noActionsNote = system.includes(MockRouter.NO_ACTIONS_NOTE);
+    // A facts network's prompt: its date, or null when the prompt holds no facts.
+    const facts = /PUBLIC FACTS \([^)]*, as of (\d{4}-\d{2}-\d{2})\)/.exec(system);
+    record.facts = facts === null ? null : facts[1];
+    // A call with no tools at all may leave the field out.
+    record.toolsField = Object.hasOwn(parsed, "tools");
     record.toolResults = [];
     for (const result of results) {
       record.toolResults.push(result.slice(0, 400));
@@ -186,7 +198,10 @@ export class MockRouter {
    * :return: {tool, request} for a tool call, or {text} for an answer.
    */
   decide(role, tools, results, record) {
-    const flags = `peer rule ${record.peerRule ? "yes" : "no"}; no-actions note ${record.noActionsNote ? "yes" : "no"}.`;
+    let flags = `peer rule ${record.peerRule ? "yes" : "no"}; no-actions note ${record.noActionsNote ? "yes" : "no"}.`;
+    if (record.facts !== null) {
+      flags = `${flags} Facts as of ${record.facts}.`;
+    }
     if (role === "nested") {
       return {text: `NESTED_ANSWER: ${flags}`};
     }
