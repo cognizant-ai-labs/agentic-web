@@ -44,7 +44,9 @@ Edited files. Each one has a line near its top saying that it was changed:
   agents into one. It also tells agents about the `render_cruse` tool.
 - `ui.js` shows a time picker for `format: "time"` fields and option labels from
   `x-ui.enumLabels`. It groups radio buttons under a legend and links each field to its
-  description for screen readers.
+  description for screen readers. The ⚙ AI model settings panel lists hosted Otari first,
+  the template's default router, and fills in its settings for a key that starts with
+  `otk_`.
 - `action-transport.js` opens the confirmation dialog with focus on its heading, so a
   stray Enter cannot confirm an action. Closing the dialog puts focus back where it was.
 - `index.js` tells visitors that only actions that cannot be undone ask first, when the
