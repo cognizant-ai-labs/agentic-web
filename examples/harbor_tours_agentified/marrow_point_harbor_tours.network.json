@@ -11,7 +11,7 @@
     ]
   },
   "llm_config": {
-    "model_name": "alibaba/qwen-3.5-35b-a3b"
+    "model_name": "alibaba/qwen3.8-flash"
   },
   "max_steps": 12,
   "cruse": {

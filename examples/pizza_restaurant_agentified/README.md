@@ -19,7 +19,7 @@ the assistant loads ES modules and fetches its configuration.
 Scroll to **Ask Little Oven**, open **⚙ AI model settings**, paste your
 [Otari](https://otari.ai) API key, and select **Save and start**. By default the
 assistant uses hosted Otari (`https://api.otari.ai/api/v1`) with the model
-`alibaba/qwen-3.5-35b-a3b`. For another provider, select it in the panel, which fills
+`alibaba/qwen3.8-flash`. For another provider, select it in the panel, which fills
 in its provider URL and model, or enter both under **Advanced settings (optional)**.
 The provider must allow requests from the browser through CORS. The generated runtime manages saved provider settings in the browser;
 no key is included in the example source. Chat and restaurant context go to the provider you select.
