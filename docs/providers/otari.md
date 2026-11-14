@@ -30,11 +30,14 @@ OpenAI allows them too.
 Hosted Otari allows browser calls from any site, so a static site can call it directly.
 In the `⚙ AI model settings` panel, set:
 
-- API key: an API key from your [otari.ai](https://otari.ai) account.
-- Under `Advanced settings (optional)`, Model: `alibaba/qwen-3.5-35b-a3b`
+- API key: an API key from your [otari.ai](https://otari.ai) account. It starts with `otk_`.
+- Under `Advanced settings (optional)`, Model: `alibaba/qwen3.8-flash`
 - Under `Advanced settings (optional)`, Provider URL: `https://api.otari.ai/api/v1`
 
 Select `Save and start`, then chat.
+
+On sites built with the agentify-website skill, including the examples in this repo,
+pasting the key is enough: the panel fills in the Model and Provider URL above.
 
 Things to know:
 

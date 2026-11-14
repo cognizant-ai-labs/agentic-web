@@ -29,6 +29,17 @@ import { reviewActions } from "./action-transport.js";
 export const AI_MODEL_SETTINGS_LABEL = "AI model settings";
 export const API_KEY_HELP_URL = "https://ai.google.dev/gemini-api/docs/api-key";
 export const API_KEY_PROVIDERS = [
+  // First, because sites built with the agentify-website skill use hosted Otari by default.
+  // Only hosted Otari keys start with "otk_". A self-hosted Otari's keys start with "tk-"
+  // and belong to the visitor's own Otari, so they are not matched here.
+  {
+    name: "Otari",
+    keyUrl: "https://otari.ai/dashboard#/keys",
+    router: "https://api.otari.ai/api/v1",
+    model: "alibaba/qwen3.8-flash",
+    keyPrefixes: ["otk_"],
+    accessNote: "Billing may be required",
+  },
   {
     name: "Google AI Studio",
     keyUrl: "https://aistudio.google.com/apikey",
