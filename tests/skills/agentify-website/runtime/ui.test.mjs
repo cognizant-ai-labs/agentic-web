@@ -74,3 +74,9 @@ class SettingsPanelTest {
 test("a hosted Otari key fills in hosted Otari, the first provider", SettingsPanelTest.testHostedOtariKey);
 test("a self-hosted Otari key matches no provider", SettingsPanelTest.testSelfHostedOtariKey);
 test("the other providers still match their keys", SettingsPanelTest.testOtherProviders);
+
+test("a Google AI Studio key in the newer AQ. format fills in Google AI Studio", () => {
+  const provider = providerForApiKey("AQ." + "x".repeat(64));
+  assert.equal(provider?.name, "Google AI Studio");
+  assert.equal(provider.router, "https://generativelanguage.googleapis.com/v1beta/openai");
+});

@@ -119,12 +119,20 @@ export class LlmClient {
       if (hostOf(this.baseUrl) === "api.anthropic.com") {
         headers["anthropic-dangerous-direct-browser-access"] = "true";
       }
-      const resp = await fetch(`${this.baseUrl}/chat/completions`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(body),
-        signal,
-      });
+      // Free tiers often answer 429/503 under load; retry a few times with backoff.
+      let resp;
+      for (let attempt = 0; ; attempt++) {
+        resp = await fetch(`${this.baseUrl}/chat/completions`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(body),
+          signal,
+        });
+        if (resp.ok || ![429, 500, 502, 503].includes(resp.status) || attempt >= 3) break;
+        await resp.text().catch(() => "");
+        await new Promise((r) => setTimeout(r, 2000 * 2 ** attempt));
+        signal?.throwIfAborted?.();
+      }
       if (!resp.ok) {
         const txt = await resp.text().catch(() => "");
         throw new Error(`LLM HTTP ${resp.status}: ${txt.slice(0, 300)}`);
@@ -186,11 +194,19 @@ export class LlmClient {
       }
       if (delta.tool_calls) {
         for (const tc of delta.tool_calls) {
-          const idx = tc.index ?? 0;
+          // Gemini's OpenAI-compatible stream can send parallel calls as whole chunks with the same
+          // (or no) index; a new id means a new call, otherwise they get merged into one bad call.
+          let idx = tc.index ?? (toolCalls.length ? toolCalls.length - 1 : 0);
+          if (tc.id && toolCalls[idx]?.id && toolCalls[idx].id !== tc.id) {
+            const found = toolCalls.findIndex((c) => c?.id === tc.id);
+            idx = found >= 0 ? found : toolCalls.length;
+          }
           if (!toolCalls[idx]) toolCalls[idx] = { id: tc.id, type: "function", function: { name: "", arguments: "" } };
           if (tc.id) toolCalls[idx].id = tc.id;
           if (tc.function?.name) toolCalls[idx].function.name += tc.function.name;
           if (tc.function?.arguments) toolCalls[idx].function.arguments += tc.function.arguments;
+          // Gemini 3 (OpenAI-compatible API) needs extra_content.google.thought_signature sent back with each call.
+          if (tc.extra_content) toolCalls[idx].extra_content = tc.extra_content;
         }
       }
       if (choice.finish_reason) finishReason = choice.finish_reason;
