@@ -33,7 +33,7 @@ export const API_KEY_PROVIDERS = [
     keyUrl: "https://aistudio.google.com/apikey",
     router: "https://generativelanguage.googleapis.com/v1beta/openai",
     model: "gemini-3.8-flash",
-    keyPrefixes: ["AIza"],
+    keyPrefixes: ["AIza", "AQ."],
     accessNote: "Free tier",
   },
   {
@@ -1079,7 +1079,8 @@ export function mountApp(root, { engine, trace, manifest }) {
       if (!response.ok) return null;
       const body = await response.json();
       const models = (Array.isArray(body?.data) ? body.data : [])
-        .map((item) => normalizeModelName(item?.id))
+        // Google's OpenAI-compatible catalog lists ids as "models/<name>" while chat takes "<name>".
+        .map((item) => normalizeModelName(item?.id).replace(/^models\//, ""))
         .filter(Boolean);
       modelOptionsEl.innerHTML = "";
       for (const id of models) {
