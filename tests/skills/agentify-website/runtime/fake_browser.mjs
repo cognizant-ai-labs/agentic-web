@@ -19,10 +19,12 @@ export class FakeBrowser {
    *
    * :param pageUrl: The page's address.
    * :param openRouter: The mock OpenRouter that answers requests to openrouter.ai.
+   * :param otari: The mock otari.ai that answers requests to otari.ai and its APIs, if any.
    */
-  constructor(pageUrl, openRouter) {
+  constructor(pageUrl, openRouter, otari = null) {
     this.url = new URL(pageUrl);
     this.openRouter = openRouter;
+    this.otari = otari;
     this.assigned = [];
     this.session = new FakeStorage();
     this.local = new FakeStorage();
@@ -175,7 +177,8 @@ export class FakeBrowser {
   }
 
   /**
-   * The stub fetch. It sends requests for openrouter.ai to the mock OpenRouter.
+   * The stub fetch. It sends requests for openrouter.ai to the mock OpenRouter, and
+   * requests for otari.ai and its APIs to the mock otari.ai.
    *
    * :param input: The URL or Request.
    * :param init: The fetch options.
@@ -184,7 +187,9 @@ export class FakeBrowser {
    */
   async fetch(input, init = {}) {
     const url = typeof input === "string" ? input : input.url;
-    if (new URL(url).origin === "https://openrouter.ai") return this.openRouter.answer(url, init);
+    const origin = new URL(url).origin;
+    if (origin === "https://openrouter.ai") return this.openRouter.answer(url, init);
+    if (this.otari && /^https:\/\/((eu\.)?api\.)?otari\.ai$/.test(origin)) return this.otari.answer(url, init);
     throw new Error(`Unexpected network request: ${url}`);
   }
 }

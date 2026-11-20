@@ -26,6 +26,7 @@ import { PRESENTATION_CSS, renderMarkdown, renderRichComponent } from "./cruse-r
 import { createTurnStatusController } from "./turn-status.js";
 import { reviewActions, setActionWindowPrompt } from "./action-transport.js";
 import { OpenRouterConnect } from "./openrouter-connect.js";
+import { OtariConnect } from "./otari-connect.js";
 import { InUseLine } from "./in-use-line.js";
 
 export const AI_MODEL_SETTINGS_LABEL = "AI model settings";
@@ -33,24 +34,25 @@ export const API_KEY_HELP_URL = "https://ai.google.dev/gemini-api/docs/api-key";
 export const API_KEY_PROVIDERS = [
   // First, because sites built with the agentify-website skill use hosted Otari by default.
   // Only hosted Otari keys start with "otk_". A self-hosted Otari's keys start with "tk-"
-  // and belong to the visitor's own Otari, so they are not matched here.
+  // and belong to the visitor's own Otari, so they are not matched here. The Connect with
+  // Otari button (otari-connect.js) gets a key without pasting.
   {
-    name: "Otari",
-    keyUrl: "https://otari.ai/dashboard#/keys",
-    router: "https://api.otari.ai/api/v1",
-    model: "alibaba/qwen3.8-flash",
-    keyPrefixes: ["otk_"],
+    name: OtariConnect.NAME,
+    keyUrl: OtariConnect.KEYS_PAGE_URL,
+    router: OtariConnect.ROUTER,
+    model: OtariConnect.MODEL,
+    keyPrefixes: [OtariConnect.KEY_PREFIX],
     accessNote: "Billing may be required",
   },
   // An otari.ai key belongs to one region, and the other region's gateway refuses it with
   // HTTP 421. EU keys start with "otk_v1_eu_" and go to the EU gateway. This entry has no
   // button, because visitors make keys for both regions on the same Otari dashboard.
   {
-    name: "Otari EU",
-    keyUrl: "https://otari.ai/dashboard#/keys",
-    router: "https://eu.api.otari.ai/api/v1",
-    model: "alibaba/qwen3.8-flash",
-    keyPrefixes: ["otk_v1_eu_"],
+    name: OtariConnect.EU_NAME,
+    keyUrl: OtariConnect.KEYS_PAGE_URL,
+    router: OtariConnect.EU_ROUTER,
+    model: OtariConnect.MODEL,
+    keyPrefixes: [OtariConnect.EU_KEY_PREFIX],
     accessNote: "Billing may be required",
     button: false,
   },
@@ -301,6 +303,9 @@ fieldset.ns-w-row{min-width:0;margin:0;padding:0;border:0}
 .ns-openrouter-key{display:flex;flex-direction:column;gap:2px}
 .ns-openrouter-key[hidden]{display:none}
 .ns-openrouter-key a{color:var(--ns-primary,#2563eb);font-weight:600}
+.ns-otari-key{display:flex;flex-direction:column;gap:2px}
+.ns-otari-key[hidden]{display:none}
+.ns-otari-key a{color:var(--ns-primary,#2563eb);font-weight:600}
 .ns-settings-advanced{border-top:1px solid var(--ns-border,#e2e2e2);margin-top:2px}
 .ns-settings-advanced>summary{padding:7px 0;color:var(--ns-muted,#666)}
 .ns-settings-advanced-body{display:flex;flex-direction:column;gap:6px;padding:2px 0 4px}
@@ -332,10 +337,12 @@ export function mountApp(root, { engine, trace, manifest, connect = null }) {
   const net = engine.top?.network;
   const title = manifest?.networks?.[0]?.description || net?.name || "Agent network";
   const needsByok = !engine.mockLLM && (!engine.byokKey || engine.byokKey === "demo");
-  // The Connect button needs an https page (or this computer's own address) in its own tab.
+  // The Connect buttons need an https page (or this computer's own address) in its own tab.
   const canConnect = OpenRouterConnect.isAvailable();
-  const setupMessage = canConnect
-    ? `To start, connect an AI provider. In ⚙ ${AI_MODEL_SETTINGS_LABEL}, select Connect with OpenRouter. Or choose a provider, create a key on its site, paste it into the API key field and select Save and start. Your key is saved in this browser.`
+  const canConnectOtari = OtariConnect.isAvailable();
+  const connectNames = [canConnectOtari && "Connect with Otari", canConnect && "Connect with OpenRouter"].filter(Boolean).join(" or ");
+  const setupMessage = connectNames
+    ? `To start, connect an AI provider. In ⚙ ${AI_MODEL_SETTINGS_LABEL}, select ${connectNames}. Or choose a provider, create a key on its site, paste it into the API key field and select Save and start. Your key is saved in this browser.`
     : `To start, add an AI provider key. In ⚙ ${AI_MODEL_SETTINGS_LABEL}, choose a provider, create a key on its site, and paste it into the API key field. Then select Save and start. Your key is saved in this browser.`;
   const chatSlot = root.querySelector('[data-ns-slot="chat"]');
   const agentsSlot = root.querySelector('[data-ns-slot="agents"]');
@@ -349,6 +356,7 @@ export function mountApp(root, { engine, trace, manifest, connect = null }) {
     // Where the Connect button works, it is how a visitor adds OpenRouter, so OpenRouter
     // gets no second button that opens its keys page.
     if (canConnect && provider.name === OpenRouterConnect.NAME) continue;
+    if (canConnectOtari && provider.name === OtariConnect.NAME) continue;
     providerLinksHtml += `
         <a href="${provider.keyUrl}" target="_blank" rel="noopener noreferrer" data-ns-provider="${provider.name}" data-router="${provider.router}" data-model="${provider.model}">${provider.name} <span aria-hidden="true">↗</span><small>${provider.accessNote}</small></a>`;
   }
@@ -369,11 +377,18 @@ export function mountApp(root, { engine, trace, manifest, connect = null }) {
         <a href="https://openrouter.ai/settings/keys" target="_blank" rel="noopener noreferrer">Manage this key on OpenRouter <span aria-hidden="true">↗</span></a>
         <div class="ns-hint">See what it spends, set a spending limit, or revoke it.</div>
       </div>
+      <div class="ns-otari-key" hidden>
+        <a href="${OtariConnect.KEYS_PAGE_URL}" target="_blank" rel="noopener noreferrer">Manage this key on Otari <span aria-hidden="true">↗</span></a>
+        <div class="ns-hint">See what it spends, or revoke it.</div>
+      </div>
       <div class="ns-start-actions">
         <button id="ns-apply">Save and start</button>
+        ${canConnectOtari ? `<span class="ns-or">or</span>
+        <button id="ns-connect-otari" type="button">Connect with Otari</button>` : ""}
         ${canConnect ? `<span class="ns-or">or</span>
         <button id="ns-connect-openrouter" type="button">Connect with OpenRouter</button>` : ""}
       </div>
+      ${canConnectOtari ? `<div class="ns-hint">Connect with Otari: sign in to otari.ai and approve a key for this site, with nothing to copy. You choose its spending limit and when it expires.</div>` : ""}
       ${canConnect ? `<div class="ns-hint">Connect with OpenRouter: sign in and approve a key for this site, with nothing to copy. It uses a free model, which has a daily limit.</div>` : ""}
       <details class="ns-settings-advanced">
         <summary>Advanced settings (optional)</summary>
@@ -1082,9 +1097,12 @@ export function mountApp(root, { engine, trace, manifest, connect = null }) {
   const keyHelpEl = root.querySelector(".ns-key-help");
   // An OpenRouter key, connected or pasted, gets a link to its settings page on OpenRouter.
   const openRouterKeyEl = root.querySelector(".ns-openrouter-key");
+  // An otari.ai key gets a link to the keys page on otari.ai.
+  const otariKeyEl = root.querySelector(".ns-otari-key");
   const refreshKeyHelp = () => {
     if (keyHelpEl) keyHelpEl.hidden = keyEl.value.trim().length > 0;
     OpenRouterConnect.refreshKeyLink(keyEl, openRouterKeyEl);
+    OtariConnect.refreshKeyLink(keyEl, otariKeyEl);
   };
   // The compiled LLM may already point at BYOK after a saved-profile upgrade.
   // New manifests identify an opt-in mock separately; retain compatibility with
@@ -1134,6 +1152,7 @@ export function mountApp(root, { engine, trace, manifest, connect = null }) {
   // does not fill in that provider's defaults again.
   let formProvider = providerForApiKey(keyEl.value);
   OpenRouterConnect.refreshKeyLink(keyEl, openRouterKeyEl);
+  OtariConnect.refreshKeyLink(keyEl, otariKeyEl);
   profileNameEl.value = selectedProfile?.name || "";
 
   const profileStorageText = canUseByokCookie()
@@ -1401,6 +1420,10 @@ export function mountApp(root, { engine, trace, manifest, connect = null }) {
     "click",
     OpenRouterConnect.connect.bind(OpenRouterConnect, keyLabel, setProfileHint),
   );
+  root.querySelector("#ns-connect-otari")?.addEventListener(
+    "click",
+    OtariConnect.connect.bind(OtariConnect, setProfileHint),
+  );
   profileEl.addEventListener("change", () => {
     const id = profileEl.value;
     profileStore = selectByokProfile(id);
@@ -1429,7 +1452,7 @@ export function mountApp(root, { engine, trace, manifest, connect = null }) {
   });
   refreshHint();
   if (needsByok) setProfileHint(setupMessage, "warn");
-  // Report the OpenRouter sign-in that boot() finished before this panel existed.
+  // Report the OpenRouter or Otari sign-in that boot() finished before this panel existed.
   if (connect) {
     const connected = connect.status === "connected";
     setProfileHint(connect.message, connected ? "" : "warn");
