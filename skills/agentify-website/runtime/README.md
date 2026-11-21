@@ -75,7 +75,26 @@ Edited files. Each one has a line near its top saying that it was changed:
 - `llm.js` keeps Gemini's thought signature (`extra_content`) on each streamed tool call,
   so it goes back to the model on the next step. Gemini 3 refuses that step without it.
   Gemini also streams each tool call whole and without an `index`, so a new call id
-  starts a new call instead of joining the one before it.
+  starts a new call instead of joining the one before it. For a publisher-funded router
+  it sends no key, and shows that router's plain-text refusal as written, keeping the
+  HTTP status in the trace (see "Publisher-funded router" below).
+- `engine.js`, `ui.js` and `in-use-line.js` also support a publisher-funded router; see
+  below.
+
+Publisher-funded router. nsdeploy's runtime can run without a visitor key only on its
+mock router. Spec §4 ("Default inference") also allows a default router that the
+publisher runs or pays for. A site marks one with `llm_router.publisher_funded: true`
+in `agent-manifest.json` (ignored when `mock` is true). Then:
+
+- `engine.js` calls `base_url` with no key and no `Authorization` header. When the
+  visitor adds a key, the chat switches to `byok_router`, even if the saved Provider URL
+  is `base_url`. A partner network this site calls runs on `base_url` too, so the site
+  pays for its model calls. `isPublisherFundedRouter(manifest, url)` tells whether a URL
+  is that router.
+- `ui.js` never sends a visitor's key to `base_url`. An unrecognized key entered while
+  the Provider URL box holds `base_url` clears the box, which means `byok_router`, and
+  the model check before Save and start skips a keyed request to `base_url`.
+- `in-use-line.js` says the site pays and shows no key.
 
 Added files:
 

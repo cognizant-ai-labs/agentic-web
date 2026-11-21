@@ -27,6 +27,7 @@ import { createTurnStatusController } from "./turn-status.js";
 import { reviewActions, setActionWindowPrompt } from "./action-transport.js";
 import { OpenRouterConnect } from "./openrouter-connect.js";
 import { InUseLine } from "./in-use-line.js";
+import { isPublisherFundedRouter } from "./engine.js";
 
 export const AI_MODEL_SETTINGS_LABEL = "AI model settings";
 export const API_KEY_HELP_URL = "https://ai.google.dev/gemini-api/docs/api-key";
@@ -331,7 +332,7 @@ export function mountApp(root, { engine, trace, manifest, connect = null }) {
 
   const net = engine.top?.network;
   const title = manifest?.networks?.[0]?.description || net?.name || "Agent network";
-  const needsByok = !engine.mockLLM && (!engine.byokKey || engine.byokKey === "demo");
+  const needsByok = !engine.mockLLM && !engine.publisherFundedLLM && (!engine.byokKey || engine.byokKey === "demo");
   // The Connect button needs an https page (or this computer's own address) in its own tab.
   const canConnect = OpenRouterConnect.isAvailable();
   const setupMessage = canConnect
@@ -1099,6 +1100,7 @@ export function mountApp(root, { engine, trace, manifest, connect = null }) {
   const inUseEl = root.querySelector("#ns-in-use");
   inUseEl.textContent = InUseLine.text({
     mock: engine.mockLLM,
+    publisherFunded: engine.publisherFundedLLM,
     key: engine.byokKey,
     router: activeRouter,
     model: engine.modelOverride,
@@ -1223,7 +1225,9 @@ export function mountApp(root, { engine, trace, manifest, connect = null }) {
         && resolveByokRouter(routerEl.value) === resolveByokRouter(byokRouter);
       hintEl.textContent = viaThisSite
         ? "This site passes your key on to your AI provider."
-        : "Your browser sends your key directly to the Provider URL above.";
+        : !routerEl.value.trim() && hasKey && byokRouter
+          ? `Your browser sends your key directly to ${byokRouter}, this site's router for visitors' own keys.`
+          : "Your browser sends your key directly to the Provider URL above.";
     }
   };
   const applyProviderDefaults = (provider, message) => {
@@ -1237,6 +1241,8 @@ export function mountApp(root, { engine, trace, manifest, connect = null }) {
   };
   const fetchAvailableModels = async (router, key) => {
     if (!router || isMockRouter(router)) return null;
+    // The model check must not send a visitor's key to the router this site pays for.
+    if (key && isPublisherFundedRouter(manifest, router)) return null;
     try {
       const response = await fetch(`${router.replace(/\/$/, "")}/models`, {
         cache: "no-store",
@@ -1295,7 +1301,7 @@ export function mountApp(root, { engine, trace, manifest, connect = null }) {
     const key = keyEl.value.trim();
     const model = normalizeModelName(modelEl.value);
     modelEl.value = model;
-    if (requireActiveKey && !engine.mockLLM && (!engine.byokKey || engine.byokKey === "demo")) {
+    if (requireActiveKey && !engine.mockLLM && !engine.publisherFundedLLM && (!engine.byokKey || engine.byokKey === "demo")) {
       const message = key
         ? "Your API key is ready. Select Save and start before sending a request."
         : setupMessage;
@@ -1366,6 +1372,9 @@ export function mountApp(root, { engine, trace, manifest, connect = null }) {
       // to the mock. Then show the Provider URL and Model fields and ask for a check.
       if (formProvider) clearProviderDefaults(formProvider);
       if (byokRouter && isMockRouter(routerEl.value.trim())) routerEl.value = byokRouter;
+      // An unknown key must not go to the router this site pays for. An empty box means
+      // "use the configured default", which with a key is byok_router.
+      if (isPublisherFundedRouter(manifest, routerEl.value.trim())) routerEl.value = "";
       root.querySelector(".ns-settings-advanced").open = true;
       setProfileHint(unrecognizedKeyMessage());
     } else if (!key && needsByok) {

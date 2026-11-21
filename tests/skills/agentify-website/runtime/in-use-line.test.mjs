@@ -103,6 +103,16 @@ class TestInUseLine {
   static testShortKey() {
     assert.match(InUseLine.text(TestInUseLine.setup({ key: "abc12345" })), /· key set$/);
   }
+
+  /**
+   * A publisher-funded router says the site pays, with no key to show.
+   */
+  static testPublisherFunded() {
+    assert.equal(
+      InUseLine.text({publisherFunded: true, key: "", router: "https://funded.example/v1", model: "", siteModel: "alibaba/qwen3.8-flash"}),
+      "In use: alibaba/qwen3.8-flash (this site's model) · paid for by this site, no key needed",
+    );
+  }
 }
 
 test("a known provider shows by name with the key's ending", TestInUseLine.testKnownProvider);
@@ -112,3 +122,4 @@ test("the site's model is named when the visitor picked none", TestInUseLine.tes
 test("a key passed on by this site shows as via this site", TestInUseLine.testViaThisSite);
 test("no key and the mock router get their own line", TestInUseLine.testNoKeyAndMock);
 test("a short key is not shown", TestInUseLine.testShortKey);
+test("a publisher-funded router says the site pays", TestInUseLine.testPublisherFunded);

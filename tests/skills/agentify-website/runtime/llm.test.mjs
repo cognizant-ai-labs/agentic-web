@@ -1,5 +1,6 @@
 // Checks how the skill's runtime puts streamed tool calls together, and that a Gemini
-// thought signature goes back to the model on the call it came with.
+// thought signature goes back to the model on the call it came with. Also checks that a
+// publisher-funded router gets no key and that its refusals reach the visitor.
 // Run from the repository root: node --test "tests/**/*.test.mjs"
 // The router, key and signature are fakes behind a stub fetch. No model is called.
 import assert from "node:assert/strict";
@@ -329,9 +330,73 @@ class LlmClientTest {
     ];
     assert.deepEqual(run.result.toolCalls, expected);
   }
+
+  /**
+   * Run one chat call against a stub fetch that answers with `response`, and keep the
+   * requests and the trace's updates.
+   *
+   * :param options: The LlmClient options.
+   * :param response: A function that returns the Response.
+   * :return: The requests, the trace updates and the error, if any.
+   */
+  static async callOnce(options, response) {
+    const out = {requests: [], updates: [], error: null};
+    const trace = {start: () => 1, update: (id, fields) => out.updates.push(fields), end: () => {}, fail: () => {}};
+    const savedFetch = globalThis.fetch;
+    globalThis.fetch = async (input, init) => {
+      out.requests.push({url: String(input), headers: {...init.headers}, body: init.body});
+      return response();
+    };
+    try {
+      await new LlmClient({baseUrl: LlmClientTest.ROUTER, trace, mock: false, ...options})
+        .chat({model: "alibaba/qwen3.8-flash", messages: LlmClientTest.question(), tools: []});
+    } catch (error) {
+      out.error = error;
+    } finally {
+      globalThis.fetch = savedFetch;
+    }
+    return out;
+  }
+
+  /**
+   * A publisher-funded client calls with no key, even when the visitor saved one.
+   */
+  static async testFundedSendsNoKey() {
+    const run = await LlmClientTest.callOnce({apiKey: "sk-visitor-0000000000", publisherFunded: true},
+      () => LlmClientTest.stream([{content: "hi"}], "stop"));
+    assert.equal(run.error, null);
+    assert.equal(run.requests.length, 1);
+    assert.equal(run.requests[0].headers.Authorization, undefined);
+    assert.ok(!JSON.stringify(run.requests[0]).includes("sk-visitor"));
+  }
+
+  /**
+   * A plain router with no key still stops with the setup error, before any request.
+   */
+  static async testPlainRouterNeedsKey() {
+    const run = await LlmClientTest.callOnce({apiKey: ""}, () => LlmClientTest.stream([{content: "hi"}], "stop"));
+    assert.match(run.error.message, /An AI provider key is required/);
+    assert.equal(run.requests.length, 0);
+  }
+
+  /**
+   * The funded router's plain-text refusal is shown as written, and the trace keeps the
+   * HTTP status. An empty refusal falls back to the usual message with the status.
+   */
+  static async testFundedRefusal() {
+    const text = (body) => () => new Response(body, {status: 429, headers: {"Content-Type": "text/plain; charset=utf-8"}});
+    const said = await LlmClientTest.callOnce({publisherFunded: true}, text("Today's free allowance is used up."));
+    assert.equal(said.error.message, "Today's free allowance is used up.");
+    assert.deepEqual(said.updates, [{httpStatus: 429}]);
+    const empty = await LlmClientTest.callOnce({publisherFunded: true}, text(""));
+    assert.equal(empty.error.message, "LLM HTTP 429: ");
+  }
 }
 
 test("Gemini's two calls in one step stay two calls, and the first keeps its signature", LlmClientTest.testGeminiCallsStaySeparate);
 test("the next request sends the signature back on the call it came with", LlmClientTest.testSignatureGoesBack);
 test("numbered pieces of two calls are joined as before", LlmClientTest.testNumberedPieces);
 test("with no index, a piece with no id joins the call before it", LlmClientTest.testUnnumberedPiecesWithoutId);
+test("a publisher-funded client sends no key", LlmClientTest.testFundedSendsNoKey);
+test("a plain router with no key stops before any request", LlmClientTest.testPlainRouterNeedsKey);
+test("a publisher-funded refusal is shown as written and keeps its status", LlmClientTest.testFundedRefusal);
