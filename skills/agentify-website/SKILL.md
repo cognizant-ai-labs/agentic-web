@@ -152,6 +152,9 @@ Follow `references/bundle_and_hosting.md`:
 4. If the page says that nothing is sent or that no data leaves it, change that line: the
    assistant sends the visitor's messages, and the page data it reads, to their LLM
    provider.
+5. Optional, only if the site owner asks: offer the same actions to the visitor's own
+   browser agent through WebMCP (`references/webmcp.md`). It does nothing in browsers
+   without WebMCP.
 
 ### 7. Test
 
@@ -253,6 +256,7 @@ Tell the user:
 | `references/bundle_and_hosting.md` | Output layout, manifest, mounting, providers, hosting, discovery |
 | `references/live_url_mode.md` | Companion assistant for a public URL without source |
 | `references/linking.md` | Calls between agent sites: the bridge, shared reads and writes, partner sites, checks |
+| `references/webmcp.md` | Optional: the same actions for the visitor's browser agent through WebMCP |
 | `runtime/` | Browser runtime; copy into each site unchanged (see `runtime/README.md`) |
 | `scripts/build_network.mjs` | HOCON → `.network.json`, with validation and checks |
 | `scripts/serve_site.mjs` | Local server that sends the CORS header on the public files |
@@ -266,4 +270,5 @@ Tell the user:
 | `templates/bridge/action-bridge.html` | The build copies it into `<out>/bridge/`; other agent sites load it |
 | `templates/bridge/bridge-actions.js` | The reads, and any write, a site shares with other agent sites |
 | `templates/bridge/write-window.js` | A shared write, made in a window on the site where the visitor confirms it |
+| `templates/webmcp.js` | Optional: registers the site's actions with WebMCP |
 | `templates/tests/` | Node tests with a DOM stand-in and a scripted model |

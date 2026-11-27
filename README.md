@@ -549,7 +549,9 @@ request that adds a row to `docs/agentic_websites.md`.
 MCP is the spec's baseline for tools and data: an agent can call an MCP server, and the
 visitor approves a third-party server first. WebMCP integration is listed as future work
 ([spec section 7](docs/worldwide_agentic_web_mvp_spec.md#7-extensions-and-community-opportunities)),
-and sites built with the skill do not support it yet. A site may also publish an A2A Agent Card
+and a site built with the skill can opt in: it then offers its own actions to the visitor's
+browser agent through WebMCP, with irreversible ones confirmed on the page
+([`references/webmcp.md`](skills/agentify-website/references/webmcp.md)). A site may also publish an A2A Agent Card
 ([spec section 3.3](docs/worldwide_agentic_web_mvp_spec.md#33-minimum-public-files)).
 
 ### Help
