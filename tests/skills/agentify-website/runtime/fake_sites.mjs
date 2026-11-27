@@ -73,6 +73,8 @@ export class FakeSites {
     this.requests = [];
     // URLs that neither site serves. A test expects none.
     this.unexpected = [];
+    // Every URL fetched, in order.
+    this.fetched = [];
     this.savedFetch = null;
   }
 
@@ -167,6 +169,7 @@ export class FakeSites {
     // A browser's fetch drops "/./" from a path, and the runtime builds such URLs
     // from "./" paths in a manifest.
     const url = new URL(String(input)).href;
+    this.fetched.push(url);
     if (url === `${FakeSites.ROUTER}/chat/completions`) {
       return this.chat(init);
     }

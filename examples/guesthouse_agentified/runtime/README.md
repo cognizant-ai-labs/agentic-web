@@ -71,7 +71,9 @@ Edited files. Each one has a line near its top saying that it was changed:
   It lets the chat ask before a partner's window opens (`setActionWindowPrompt`). An
   action marked `confirmsInWindow` shows its own confirmation in that window, so the
   bridge skips its generic dialog.
-- `actions.js` keeps an action's `confirmsInWindow` mark.
+- `actions.js` keeps an action's `confirmsInWindow` mark. It also runs a site's
+  `beforeAction` and `afterAction` checks (see "Checks" below).
+- `engine.js` and `runner.js` also run a site's `beforePeer` checks; see "Checks" below.
 - `index.js` tells visitors that only actions that cannot be undone ask first, when the
   site offers `website_*` tools. Opening its "website actions connected" line lists the
   page's actions by name and marks the ones that ask first. It also finishes an
@@ -105,6 +107,39 @@ in `agent-manifest.json` (ignored when `mock` is true). Then:
   the Provider URL box holds `base_url` clears the box, which means `byok_router`, and
   the model check before Save and start skips a keyed request to `base_url`.
 - `in-use-line.js` says the site pays and shows no key.
+
+Checks. A safety tool, such as a guard on what a page sends to partners, can add a check
+instead of wrapping the engine's internal methods:
+
+```js
+const remove = engine.addCheck({
+  beforePeer(info) {},             // throw to refuse
+  beforeAction(items) {},          // throw to refuse
+  afterAction(items, receipts) {},
+});
+```
+
+Each hook is optional and may be async. Checks run in the order added, and the first
+one that throws refuses; its message is the reason. `addCheck` returns a function that
+removes the check.
+
+- `beforePeer(info)` runs before the consent card for a partner network or MCP service
+  on another origin, every time, even after the visitor chose "always". `info` has
+  `kind` (`"network"` or `"mcp"`), `phase` (for MCP, `"discover"` or `"call"`),
+  `peerOrigin`, `url` and `requestText`. A refusal shows no card, and the partner's
+  origin is never contacted. The agent is told a check refused the call, and the trace
+  gets a `check_refused` note with the reason.
+- `beforeAction(items)` runs before a website action's confirmation, with the same items
+  the dialog shows. A refusal starts no action and shows no dialog; each action gets a
+  receipt with status `"refused"`.
+- `afterAction(items, receipts)` runs after the actions ran, with their receipts. It
+  cannot change them, and its errors are ignored. It does not run when the visitor
+  declines the dialog.
+
+Runtime stops are already events on `engine.trace` (listen for `"event"`): a call over
+the composition budget is a `composition_limit` note, a partner already in the call chain
+is a `composition_skip` note, and a refused origin or other error ends its `tool` span
+with status `"error"`.
 
 Added files:
 

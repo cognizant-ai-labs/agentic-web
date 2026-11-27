@@ -16,7 +16,7 @@ import { fallbackModel, normalizeModelName } from "./model.js";
 import { interactionMessage } from "./cruse.js";
 import { createTurnEventStream } from "./execution-stream.js";
 import { TurnControl } from "./turn-control.js";
-import { ActionRegistry, actionBindings, cloneData } from "./actions.js";
+import { ActionRegistry, actionBindings, cloneData, runChecks } from "./actions.js";
 import { loadActionModule, registerRemoteActions } from "./action-transport.js";
 import { randomUuid } from "./web-crypto.js";
 
@@ -127,7 +127,8 @@ export class Engine {
     this.onLinkRequired = null; // UI hook: async ({reference,...}) => peer URL|null
     this.runtimeAllowedPeers = new Set(); // user-entered, validated link origins
     this.streamSequence = 0;
-    this.actions = new ActionRegistry();
+    this.checks = []; // safety checks a site adds with addCheck()
+    this.actions = new ActionRegistry({ checks: this.checks });
     this.actionPresentations = new Map();
     this.actionSubmissions = new Map();
     this.onActionConfirm = async () => false;
@@ -140,9 +141,35 @@ export class Engine {
     this.actionSubmissions.clear();
   }
 
+  /**
+   * Add a safety check. Each hook is optional, may be async, and refuses by throwing:
+   * - beforePeer(info): before the consent card for a partner network or MCP service
+   *   on another origin, and before that origin is contacted. info has kind ("network"
+   *   or "mcp"), phase (MCP: "discover" or "call"), peerOrigin, url and requestText.
+   *   A refusal means the origin is never contacted.
+   * - beforeAction(items): before a website action's confirmation, with the items the
+   *   dialog shows. A refusal starts no action; each gets a "refused" receipt.
+   * - afterAction(items, receipts): after the actions ran. Its errors are ignored.
+   * Checks run in the order added. Returns a function that removes the check.
+   */
+  addCheck(check) {
+    this.checks.push(check);
+    return () => {
+      const index = this.checks.indexOf(check);
+      if (index >= 0) this.checks.splice(index, 1);
+    };
+  }
+
   // Ask the user to approve contacting another hosted network. Remembers
   // "always" per origin; defaults to allow when no UI hook is attached (headless).
+  // The site's beforePeer checks run first, every time, even for a remembered
+  // "always"; a refusal returns "refuse" and no card is shown.
   async requestConsent(info) {
+    const refusal = await runChecks(this.checks, "beforePeer", { ...info });
+    if (refusal) {
+      this.trace.note("check_refused", { peerOrigin: info.peerOrigin, peerKind: info.kind, peerPhase: info.phase, reason: refusal });
+      return "refuse";
+    }
     const decide = async () => {
       if (this.consent.get(info.peerOrigin) === "always") return "allow";
       if (typeof this.onConsent !== "function") return "allow";

@@ -173,13 +173,14 @@ export async function buildToolTable(ctx, spec, chain, parentSpan) {
       if (requiresApproval) {
         const decision = await ctx.requestConsent?.({
           kind: "mcp", phase: "discover", peerLabel: "Destination service", peerOrigin: host,
-          requestText: "(discover available tools)",
+          url: typeof ref === "string" ? ref : ref.url, requestText: "(discover available tools)",
           est: { totalTokens: 0, costText: ctx.mock ? "$0.00 (mock)" : "metadata only" },
         });
         if (decision === "decline") {
           ctx.trace.note("consent", { parent: parentSpan, origin: ctx.displayOrigin, peerOrigin: host, phase: "discover", decision: "declined" });
           continue;
         }
+        if (decision === "refuse") continue;
       }
       const client = await ctx.resolveMcp(ref, parentSpan);
       for (const t of await client.listTools(parentSpan)) {
@@ -416,13 +417,14 @@ export async function dispatchToolCall(ctx, entry, args, parentSpan, chain) {
       const requestText = argsToText(args);
       const decision = await ctx.requestConsent?.({
         kind: "mcp", phase: "call", peerLabel: "Destination service", peerOrigin: host,
-        requestText,
+        url: entry.client.url, requestText,
         est: { totalTokens: Math.round((requestText.length + 80) / 4), costText: ctx.mock ? "$0.00 (mock)" : null },
       });
       if (decision === "decline") {
         ctx.trace.note("consent", { parent: parentSpan, origin: ctx.displayOrigin, peerOrigin: host, phase: "call", decision: "declined" });
         return `The user declined to send this request to ${host}. Continue without it.`;
       }
+      if (decision === "refuse") return `A check on this page refused to send this request to ${host}. Continue without it.`;
     }
     return entry.client.callTool(entry.mcpName, args, parentSpan);
   }
@@ -444,12 +446,13 @@ export async function dispatchToolCall(ctx, entry, args, parentSpan, chain) {
         costText: ctx.mock ? "$0.00 (mock)" : null,
       };
       const decision = await ctx.requestConsent?.({
-        kind: "network", peerLabel: entry.label || host, peerOrigin: host, requestText, est,
+        kind: "network", peerLabel: entry.label || host, peerOrigin: host, url: entry.url, requestText, est,
       });
       if (decision === "decline") {
         ctx.trace.note("consent", { parent: parentSpan, origin: ctx.displayOrigin, peerOrigin: host, decision: "declined" });
         return `The user declined to contact ${host}. Proceed without it and note that to the user.`;
       }
+      if (decision === "refuse") return `A check on this page refused to contact ${host}. Proceed without it and note that to the user.`;
     }
     const parsed = parseExternalAgent(entry.url, ctx.baseOrigin);
     const budgetReason = consumeRemoteBudget(ctx.composition, `${parsed.origin}::${parsed.agentName}`);

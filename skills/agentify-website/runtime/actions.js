@@ -65,8 +65,20 @@ export function actionContext(catalog) {
   return `\nCRUSE browser actions (proposals only; these are NOT tool calls):\n${JSON.stringify(catalog)}\nReturn proposals in the ordinary version:1 cruse-ui components. A ready action is {kind:"action",id:"save",action:"EXACT ref",label:"Save",arguments:{...}}. A form may have submit:{actions:[{action:"EXACT ref",arguments:{knownValue:123},inputs:{argumentName:"fieldName"}}]}. inputs maps argument names to top-level form field names, not expressions. Use inputSchema for field types, enum choices and constraints. Preserve exact action references from this catalog or validated child proposals. Consolidate child/local forms and their submit.actions into one form where useful. Keep the mappings when renaming fields. An action proposal never means completion. Submission is executed by the browser after user review; only returned receipts establish results. Do not collect passwords, tokens or payment credentials in CRUSE. Never invent handlers, destinations or successful receipts.`;
 }
 
+// Run one hook of each check a site added with engine.addCheck(), in the order added.
+// A check refuses by throwing; the first refusal's message is returned and the
+// remaining checks do not run. Returns "" when every check allows.
+export async function runChecks(checks, hook, ...args) {
+  for (const check of checks || []) {
+    if (typeof check?.[hook] !== "function") continue;
+    try { await check[hook](...args); }
+    catch (error) { return String(error?.message || error || "refused by a check"); }
+  }
+  return "";
+}
+
 export class ActionRegistry {
-  constructor() { this.entries = new Map(); this.sequence = 0; this.discoveryIssues = []; }
+  constructor({ checks = [] } = {}) { this.entries = new Map(); this.sequence = 0; this.discoveryIssues = []; this.checks = checks; }
   register(scope, definition, execute = definition.execute) {
     const { name, description, inputSchema, outputSchema, effect = "write", availability = "local-only", callerOrigins = [], timeoutMs = 180000, confirmsInWindow = false } = cloneData(definition);
     if (!/^[A-Za-z][\w-]{0,79}$/.test(name || "") || !description || typeof execute !== "function") throw new Error("Action requires name, description and execute function.");
@@ -131,8 +143,12 @@ export class ActionRegistry {
     });
   }
   async execute(plan, confirm, invocationId) {
+    const items = () => plan.map(({ entry, args }) => ({ action: entry.name, description: entry.description, origin: new URL(entry.base).origin, effect: entry.effect, arguments: cloneData(args) }));
+    // A site's checks see the same payload as the dialog, before it. A refusal starts nothing.
+    const refusal = await runChecks(this.checks, "beforeAction", items());
+    if (refusal) return plan.map(({ entry }) => ({ action: entry.ref, status: "refused", error: refusal }));
     // Confirm the immutable complete payload before any action begins.
-    if (!await confirm(plan.map(({ entry, args }) => ({ action: entry.name, description: entry.description, origin: new URL(entry.base).origin, effect: entry.effect, arguments: cloneData(args) })))) return null;
+    if (!await confirm(items())) return null;
     const receipts = [];
     for (let i = 0; i < plan.length; i++) {
       const { entry, args } = plan[i];
@@ -153,6 +169,8 @@ export class ActionRegistry {
         break;
       } finally { clearTimeout(timer); }
     }
+    // afterAction reads the outcome. It cannot change it, so its errors are ignored.
+    await runChecks(this.checks, "afterAction", items(), cloneData(receipts));
     return receipts;
   }
 }
