@@ -234,6 +234,9 @@ export class LlmClient {
       signal?.removeEventListener("abort", cancel);
     }
 
+    // A call with no arguments can arrive as ""; send it back as valid JSON.
+    for (const t of toolCalls) if (t && !t.function.arguments.trim()) t.function.arguments = "{}";
+
     return { content, toolCalls: toolCalls.filter(Boolean), finishReason, usage, model };
   }
 

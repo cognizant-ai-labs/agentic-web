@@ -1,6 +1,7 @@
 // Checks how the skill's runtime puts streamed tool calls together, and that a Gemini
-// thought signature goes back to the model on the call it came with. Also checks that a
-// publisher-funded router gets no key and that its refusals reach the visitor.
+// thought signature goes back to the model on the call it came with, and that a call
+// with no arguments goes back with "{}". Also checks that a publisher-funded router gets
+// no key and that its refusals reach the visitor.
 // Run from the repository root: node --test "tests/**/*.test.mjs"
 // The router, key and signature are fakes behind a stub fetch. No model is called.
 import assert from "node:assert/strict";
@@ -332,6 +333,34 @@ class LlmClientTest {
   }
 
   /**
+   * A call streamed with a name and no arguments goes back with "{}", not "".
+   */
+  static async testCallWithNoArguments() {
+    const deltas = [
+      {
+        tool_calls: [
+          {
+            index: 0,
+            id: "call_n",
+            type: "function",
+            function: {
+              name: "list_rooms",
+              arguments: "",
+            },
+          },
+        ],
+      },
+    ];
+    const run = await LlmClientTest.run([
+      LlmClientTest.stream(deltas, "tool_calls"),
+      LlmClientTest.stream([{content: "Two rooms are free."}], "stop"),
+    ]);
+    const sent = run.bodies[1].messages[1];
+    assert.equal(sent.role, "assistant");
+    assert.equal(sent.tool_calls[0].function.arguments, "{}");
+  }
+
+  /**
    * Run one chat call against a stub fetch that answers with `response`, and keep the
    * requests and the trace's updates.
    *
@@ -397,6 +426,7 @@ test("Gemini's two calls in one step stay two calls, and the first keeps its sig
 test("the next request sends the signature back on the call it came with", LlmClientTest.testSignatureGoesBack);
 test("numbered pieces of two calls are joined as before", LlmClientTest.testNumberedPieces);
 test("with no index, a piece with no id joins the call before it", LlmClientTest.testUnnumberedPiecesWithoutId);
+test("a call with no arguments goes back with \"{}\"", LlmClientTest.testCallWithNoArguments);
 test("a publisher-funded client sends no key", LlmClientTest.testFundedSendsNoKey);
 test("a plain router with no key stops before any request", LlmClientTest.testPlainRouterNeedsKey);
 test("a publisher-funded refusal is shown as written and keeps its status", LlmClientTest.testFundedRefusal);
