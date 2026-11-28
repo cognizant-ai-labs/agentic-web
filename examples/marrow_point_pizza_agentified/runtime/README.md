@@ -82,6 +82,8 @@ Edited files. Each one has a line near its top saying that it was changed:
   starts a new call instead of joining the one before it. For a publisher-funded router
   it sends no key, and shows that router's plain-text refusal as written, keeping the
   HTTP status in the trace (see "Publisher-funded router" below).
+  A tool call streamed with no arguments goes back to the model with `"{}"`, not an
+  empty string, which a provider can reject as malformed JSON.
 - `engine.js`, `ui.js` and `in-use-line.js` also support a publisher-funded router; see
   below.
 - `ui.js`, `cruse-render.js`, `discovered-actions.js`, `form-actions.js` and `sandbox.js`
